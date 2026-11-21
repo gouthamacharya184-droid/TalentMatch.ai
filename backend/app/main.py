@@ -1,7 +1,7 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -115,6 +115,23 @@ for prefix in api_prefixes:
         app.include_router(r, prefix=prefix)
 
 # Health Check & Root
+@app.post("/api/job-descriptions/parse")
+async def parse_job_description_endpoint(file: UploadFile = File(...)):
+    from app.api.jobs import upload_job_document
+    res = await upload_job_document(file)
+    reqs = res.get("requirements", [])
+    skills = [
+        r.get("skill_name") if isinstance(r, dict) else getattr(r, "skill_name", str(r))
+        for r in reqs
+    ]
+    return {
+        "title": res.get("title", "Custom Job Description"),
+        "description": res.get("description", ""),
+        "skills": skills,
+        **res
+    }
+
+
 @app.get("/health")
 @app.get("/api/health")
 def health_check():

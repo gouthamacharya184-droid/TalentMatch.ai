@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Cpu,
@@ -10,7 +10,10 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  Eye
+  Eye,
+  Upload,
+  X,
+  FileText
 } from 'lucide-react';
 import { jobsApi, candidatesApi, matchingApi } from '../services/api';
 import type { Job, Candidate, MatchingAnalysis } from '../types';
@@ -31,6 +34,16 @@ export const AIMatchingPage: React.FC = () => {
   const [results, setResults] = useState<MatchingAnalysis[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
+
+  // Card 1: Custom Job Description Input States
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pastedText, setPastedText] = useState<string>('');
+  const [parsing, setParsing] = useState<boolean>(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [activeSource, setActiveSource] = useState<'dropdown' | 'upload' | 'paste'>('dropdown');
+  const lastAppliedTextRef = useRef<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -74,6 +87,137 @@ export const AIMatchingPage: React.FC = () => {
       setResults([]);
     }
   };
+
+  const handleDropdownChange = (jobId: string) => {
+    setActiveSource('dropdown');
+    setUploadedFile(null);
+    setPastedText('');
+    lastAppliedTextRef.current = '';
+    setUploadError(null);
+    setParseError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    handleJobChange(jobId);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError(null);
+    setParseError(null);
+
+    const validExtensions = ['.pdf', '.docx', '.txt'];
+    const lowerName = file.name.toLowerCase();
+    const isSupported = validExtensions.some((ext) => lowerName.endsWith(ext));
+    if (!isSupported) {
+      setUploadError('Unsupported file type. Please upload a .pdf, .docx, or .txt file.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (file.size > MAX_SIZE) {
+      setUploadError('File size exceeds the 5 MB limit.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setActiveSource('upload');
+    setUploadedFile(file);
+    setPastedText('');
+    lastAppliedTextRef.current = '';
+
+    setParsing(true);
+    try {
+      const parsed = await jobsApi.uploadJDDocument(file);
+      const newJob = await jobsApi.createJob({
+        title: parsed.title || 'Custom Job Description',
+        company: parsed.company || 'Custom Upload',
+        location: parsed.location || 'Remote',
+        employment_type: parsed.employment_type || 'Full-time',
+        min_experience: parsed.min_experience !== undefined ? parsed.min_experience : 3.0,
+        education_req: parsed.education_req || "Bachelor's Degree",
+        description: parsed.description,
+      });
+
+      setJobs((prev) => [newJob, ...prev.filter((j) => j.id !== newJob.id)]);
+      setSelectedJobId(newJob.id);
+      setResults([]);
+    } catch (err: any) {
+      setParseError(formatApiError(err, 'Failed to parse job description file.'));
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handleRemoveUploadedFile = () => {
+    setUploadedFile(null);
+    setUploadError(null);
+    setParseError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setActiveSource('dropdown');
+    if (jobs.length > 0) {
+      const fallbackJob = jobs.find((j) => j.company !== 'Custom' && j.company !== 'Custom Upload' && j.company !== 'Custom Paste') || jobs[0];
+      setSelectedJobId(fallbackJob.id);
+      handleJobChange(fallbackJob.id);
+    }
+  };
+
+  const applyPastedText = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === lastAppliedTextRef.current.trim()) return;
+
+    if (trimmed.length < 20) {
+      setParseError('Please enter at least 20 characters for the job description.');
+      return;
+    }
+
+    lastAppliedTextRef.current = trimmed;
+    setActiveSource('paste');
+    setUploadedFile(null);
+    setUploadError(null);
+    setParseError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    setParsing(true);
+    try {
+      const newJob = await jobsApi.createJob({
+        title: 'Custom Job Description',
+        company: 'Custom Paste',
+        location: 'Remote',
+        employment_type: 'Full-time',
+        min_experience: 3.0,
+        education_req: "Bachelor's Degree",
+        description: trimmed,
+      });
+
+      setJobs((prev) => [newJob, ...prev.filter((j) => j.id !== newJob.id)]);
+      setSelectedJobId(newJob.id);
+      setResults([]);
+    } catch (err: any) {
+      setParseError(formatApiError(err, 'Failed to extract requirements from pasted text.'));
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handlePasteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setPastedText(text);
+    setActiveSource('paste');
+    setUploadedFile(null);
+    setUploadError(null);
+    setParseError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  useEffect(() => {
+    if (activeSource !== 'paste' || !pastedText.trim()) return;
+    const timer = setTimeout(() => {
+      applyPastedText(pastedText);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [pastedText, activeSource]);
 
   const toggleCandidate = (id: string) => {
     if (selectedCandidateIds.includes(id)) {
@@ -146,7 +290,7 @@ export const AIMatchingPage: React.FC = () => {
       {/* ── Selection Workspace ─────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Step 1: Select Job Description */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 max-h-[720px] overflow-y-auto">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 font-bold flex items-center justify-center text-xs">
               1
@@ -161,16 +305,119 @@ export const AIMatchingPage: React.FC = () => {
               Configured Job Description
             </label>
             <select
-              value={selectedJobId}
-              onChange={(e) => handleJobChange(e.target.value)}
+              value={activeSource === 'dropdown' ? selectedJobId : ''}
+              onChange={(e) => handleDropdownChange(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white outline-none focus:border-blue-600"
             >
+              {activeSource !== 'dropdown' && (
+                <option value="" disabled>
+                  Select from configured jobs...
+                </option>
+              )}
               {jobs.map((j) => (
                 <option key={j.id} value={j.id}>
                   {j.title} ({j.company})
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Small divider label "OR" */}
+          <div className="relative flex items-center justify-center my-1">
+            <div className="w-full border-t border-slate-200"></div>
+            <span className="absolute bg-white px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              OR
+            </span>
+          </div>
+
+          {/* New Input Options: Upload (A) & Paste (B) */}
+          <div className="space-y-3">
+            {/* (A) File Upload Button */}
+            <div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".pdf,.docx,.txt"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={parsing}
+                className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <span>Upload Job Description</span>
+              </button>
+
+              {/* Show selected file with "x" remove button */}
+              {uploadedFile && (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 mt-1.5">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span className="truncate font-medium">{uploadedFile.name}</span>
+                    <span className="text-[10px] text-blue-500 shrink-0">
+                      ({(uploadedFile.size / 1024).toFixed(0)} KB)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveUploadedFile}
+                    className="p-1 rounded hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition-colors ml-1 shrink-0 cursor-pointer"
+                    title="Remove file"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {uploadError && (
+                <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  <span>{uploadError}</span>
+                </p>
+              )}
+            </div>
+
+            {/* (B) Paste Text Box */}
+            <div className="space-y-1">
+              <textarea
+                rows={5}
+                value={pastedText}
+                onChange={handlePasteChange}
+                placeholder="Or paste the job description here..."
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 resize-y leading-relaxed"
+              />
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => applyPastedText(pastedText)}
+                  disabled={!pastedText.trim() || parsing || activeSource === 'paste'}
+                  className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 text-[11px] font-semibold hover:bg-blue-100 disabled:opacity-40 transition-colors cursor-pointer"
+                >
+                  Use this description
+                </button>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {pastedText.length} characters
+                </span>
+              </div>
+            </div>
+
+            {/* Parsing / Loading State */}
+            {parsing && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-700 animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
+                <span>Extracting job requirements & skills...</span>
+              </div>
+            )}
+
+            {parseError && (
+              <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span>{parseError}</span>
+              </p>
+            )}
           </div>
 
           {currentJob && (
