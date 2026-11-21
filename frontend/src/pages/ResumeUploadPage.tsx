@@ -539,24 +539,6 @@ export const ResumeUploadPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Callout when files are pending */}
-          {pendingCount > 0 && !isUploading && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>
-                  <strong>{pendingCount} resume{pendingCount > 1 ? 's' : ''} staged in queue.</strong> Ready for NLP parsing and candidate database persistence.
-                </span>
-              </div>
-              <button
-                onClick={startUpload}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer shrink-0"
-              >
-                <span>Start Batch Extraction ({pendingCount})</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
 
           {/* Overall Batch Progress */}
           {isUploading && (
