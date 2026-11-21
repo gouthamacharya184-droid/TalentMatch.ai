@@ -5,10 +5,19 @@ from typing import Optional, Dict, Any
 def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
     """
     Extract text and metadata from PDF using PyMuPDF (fitz)
-    with a fallback to pypdf.
+    with magic byte validation and fallback to pypdf.
     """
     if not os.path.exists(file_path):
         return {"text": "", "page_count": 0, "error": "File not found"}
+
+    # Magic byte validation (OWASP file upload protection)
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(1024)
+            if not header.startswith(b"%PDF") and b"%PDF" not in header[:1024]:
+                return {"text": "", "page_count": 0, "error": "Invalid or corrupted PDF file header"}
+    except Exception as e:
+        return {"text": "", "page_count": 0, "error": f"Failed to read file header: {e}"}
 
     text_content = []
     page_count = 0
@@ -24,6 +33,10 @@ def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
             return {"text": "", "page_count": 0, "error": "Password-protected PDF document"}
 
         page_count = len(doc)
+        if page_count > 100:
+            doc.close()
+            return {"text": "", "page_count": page_count, "error": "PDF exceeds 100 page safety limit"}
+
         for page in doc:
             t = page.get_text("text")
             if t:

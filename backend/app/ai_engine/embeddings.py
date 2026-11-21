@@ -1,5 +1,6 @@
 import logging
-from typing import List, Union
+import hashlib
+from typing import List, Union, Optional, Dict
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -11,16 +12,18 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """
     Embedding service providing semantic vectors and cosine similarity.
-    Uses Sentence Transformers with a reliable Scikit-Learn TF-IDF fallback.
+    Uses Sentence Transformers with in-memory caching and Scikit-Learn TF-IDF fallback.
     """
 
     _instance = None
     _model = None
     _use_transformers = True
+    _embedding_cache: Dict[str, np.ndarray] = {}
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(EmbeddingService, cls).__new__(cls)
+            cls._instance._embedding_cache = {}
             cls._instance._initialize_model()
         return cls._instance
 
@@ -45,6 +48,25 @@ class EmbeddingService:
             self._model = None
             self._use_transformers = False
 
+    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
+        """Retrieve embedding from cache or encode using SentenceTransformers."""
+        if not self._use_transformers or self._model is None:
+            return None
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if text_hash in self._embedding_cache:
+            return self._embedding_cache[text_hash]
+
+        try:
+            emb = self._model.encode([text], convert_to_numpy=True)[0]
+            if len(self._embedding_cache) >= 5000:
+                # Evict oldest entry (FIFO)
+                self._embedding_cache.pop(next(iter(self._embedding_cache)))
+            self._embedding_cache[text_hash] = emb
+            return emb
+        except Exception as e:
+            logger.warning(f"Transformer encoding failed: {e}")
+            return None
+
     def compute_similarity(self, text_a: str, text_b: str) -> float:
         """
         Compute semantic cosine similarity score between two texts in range [0.0, 1.0].
@@ -55,18 +77,17 @@ class EmbeddingService:
         if text_a.strip().lower() == text_b.strip().lower():
             return 1.0
 
-        # Method 1: Sentence Transformers
+        # Method 1: Sentence Transformers with Cached Embeddings
         if self._use_transformers and self._model is not None:
-            try:
-                embeddings = self._model.encode([text_a, text_b], convert_to_numpy=True)
-                emb_a = embeddings[0].reshape(1, -1)
-                emb_b = embeddings[1].reshape(1, -1)
-                sim = float(cosine_similarity(emb_a, emb_b)[0][0])
-                # Normalize cosine similarity [-1, 1] to [0, 1]
-                normalized = max(0.0, min(1.0, (sim + 1.0) / 2.0))
-                return round(normalized, 4)
-            except Exception as e:
-                logger.warning(f"Transformer similarity failed: {e}. Falling back to TF-IDF.")
+            emb_a = self._get_embedding(text_a)
+            emb_b = self._get_embedding(text_b)
+            if emb_a is not None and emb_b is not None:
+                try:
+                    sim = float(cosine_similarity(emb_a.reshape(1, -1), emb_b.reshape(1, -1))[0][0])
+                    normalized = max(0.0, min(1.0, (sim + 1.0) / 2.0))
+                    return round(normalized, 4)
+                except Exception as e:
+                    logger.warning(f"Cosine similarity calculation failed: {e}")
 
         # Method 2: Scikit-learn TF-IDF Cosine Similarity Fallback
         try:

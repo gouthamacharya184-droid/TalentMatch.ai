@@ -1,28 +1,41 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Pages
-import { DashboardPage } from './pages/DashboardPage';
-import { JobsPage } from './pages/JobsPage';
-import { ResumeUploadPage } from './pages/ResumeUploadPage';
-import { AIMatchingPage } from './pages/AIMatchingPage';
-import { CandidatesPage } from './pages/CandidatesPage';
-import { CandidateRankingPage } from './pages/CandidateRankingPage';
-import { CompareCandidatesPage } from './pages/CompareCandidatesPage';
-import { ShortlistPage } from './pages/ShortlistPage';
-import { AnalyticsPage } from './pages/AnalyticsPage';
-import { AnalysisHistoryPage } from './pages/AnalysisHistoryPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { SettingsPage } from './pages/SettingsPage';
-import { SecurityPage } from './pages/SecurityPage';
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { CampaignsPage } from './pages/CampaignsPage';
-import { InterviewIntelligencePage } from './pages/InterviewIntelligencePage';
-import { AgentActivityPage } from './pages/AgentActivityPage';
+// Loading Skeleton for Lazy-Loaded Pages
+const PageLoadingFallback: React.FC = () => (
+  <div className="p-8 space-y-6 max-w-7xl mx-auto animate-pulse">
+    <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg w-1/4"></div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></div>
+      <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></div>
+      <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></div>
+    </div>
+    <div className="h-96 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></div>
+  </div>
+);
+
+// Lazy-Loaded Pages for High Performance & Code Splitting
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const JobsPage = React.lazy(() => import('./pages/JobsPage').then(m => ({ default: m.JobsPage })));
+const ResumeUploadPage = React.lazy(() => import('./pages/ResumeUploadPage').then(m => ({ default: m.ResumeUploadPage })));
+const AIMatchingPage = React.lazy(() => import('./pages/AIMatchingPage').then(m => ({ default: m.AIMatchingPage })));
+const CandidatesPage = React.lazy(() => import('./pages/CandidatesPage').then(m => ({ default: m.CandidatesPage })));
+const CandidateRankingPage = React.lazy(() => import('./pages/CandidateRankingPage').then(m => ({ default: m.CandidateRankingPage })));
+const CompareCandidatesPage = React.lazy(() => import('./pages/CompareCandidatesPage').then(m => ({ default: m.CompareCandidatesPage })));
+const ShortlistPage = React.lazy(() => import('./pages/ShortlistPage').then(m => ({ default: m.ShortlistPage })));
+const AnalyticsPage = React.lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
+const AnalysisHistoryPage = React.lazy(() => import('./pages/AnalysisHistoryPage').then(m => ({ default: m.AnalysisHistoryPage })));
+const ProfilePage = React.lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const SettingsPage = React.lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const SecurityPage = React.lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegisterPage = React.lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const CampaignsPage = React.lazy(() => import('./pages/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
+const InterviewIntelligencePage = React.lazy(() => import('./pages/InterviewIntelligencePage').then(m => ({ default: m.InterviewIntelligencePage })));
+const AgentActivityPage = React.lazy(() => import('./pages/AgentActivityPage').then(m => ({ default: m.AgentActivityPage })));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading, token } = useAuth();
@@ -51,41 +64,43 @@ export const App: React.FC = () => {
     <ErrorBoundary fallbackTitle="Application Error Boundary">
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
-            {/* Public Authentication */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
+              {/* Public Authentication */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
 
-            {/* Protected Recruiter Workspace */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<DashboardPage />} />
-              <Route path="campaigns" element={<CampaignsPage />} />
-              <Route path="jobs" element={<JobsPage />} />
-              <Route path="resumes/upload" element={<ResumeUploadPage />} />
-              <Route path="matching" element={<AIMatchingPage />} />
-              <Route path="candidates" element={<CandidatesPage />} />
-              <Route path="ranking" element={<CandidateRankingPage />} />
-              <Route path="compare" element={<CompareCandidatesPage />} />
-              <Route path="shortlist" element={<ShortlistPage />} />
-              <Route path="interview-kits" element={<InterviewIntelligencePage />} />
-              <Route path="analytics" element={<AnalyticsPage />} />
-              <Route path="history" element={<AnalysisHistoryPage />} />
-              <Route path="agent-activity" element={<AgentActivityPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="security" element={<SecurityPage />} />
-            </Route>
+              {/* Protected Recruiter Workspace */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<DashboardPage />} />
+                <Route path="campaigns" element={<CampaignsPage />} />
+                <Route path="jobs" element={<JobsPage />} />
+                <Route path="resumes/upload" element={<ResumeUploadPage />} />
+                <Route path="matching" element={<AIMatchingPage />} />
+                <Route path="candidates" element={<CandidatesPage />} />
+                <Route path="ranking" element={<CandidateRankingPage />} />
+                <Route path="compare" element={<CompareCandidatesPage />} />
+                <Route path="shortlist" element={<ShortlistPage />} />
+                <Route path="interview-kits" element={<InterviewIntelligencePage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="history" element={<AnalysisHistoryPage />} />
+                <Route path="agent-activity" element={<AgentActivityPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="security" element={<SecurityPage />} />
+              </Route>
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

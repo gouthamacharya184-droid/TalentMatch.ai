@@ -5,10 +5,19 @@ from typing import Dict, Any
 def extract_text_from_docx(file_path: str) -> Dict[str, Any]:
     """
     Extract text from DOCX documents using python-docx.
-    Extracts paragraphs, tables, and headers.
+    Includes magic byte validation, paragraphs, tables, and headers.
     """
     if not os.path.exists(file_path):
         return {"text": "", "paragraph_count": 0, "error": "File not found"}
+
+    # Magic byte validation (PK\x03\x04 zip container header)
+    try:
+        with open(file_path, "rb") as f:
+            sig = f.read(4)
+            if not sig.startswith(b"PK\x03\x04"):
+                return {"text": "", "paragraph_count": 0, "error": "Invalid or corrupted DOCX signature"}
+    except Exception as e:
+        return {"text": "", "paragraph_count": 0, "error": f"Failed to read file signature: {e}"}
 
     try:
         import docx

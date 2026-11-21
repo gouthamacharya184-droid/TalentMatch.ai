@@ -32,8 +32,11 @@ import type {
 } from '../types';
 
 // ── Axios instance ──────────────────────────────────────────
+const rawBase = (import.meta.env.VITE_API_URL as string) || '/api';
+const baseURL = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL,
   headers: { 'Content-Type': 'application/json' },
 });
 

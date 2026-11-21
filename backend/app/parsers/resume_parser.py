@@ -97,11 +97,18 @@ class ResumeParser:
         return None
 
     def _extract_name(self, lines: List[str], filename: Optional[str]) -> str:
-        # Check first 5 lines for a clean candidate name
+        # Check for explicit "Name: <Candidate Name>"
+        for line in lines[:10]:
+            name_prefix = re.search(r"^(?:name|candidate name|full name)\s*[:\-]\s*([A-Z][a-zA-Z.'-]+(?:\s+[A-Z][a-zA-Z.'-]+){1,3})", line, flags=re.IGNORECASE)
+            if name_prefix:
+                return name_prefix.group(1).strip()
+
+        # Check first 6 lines for a clean candidate name
         ignored_keywords = [
             "resume", "curriculum vitae", "cv", "page", "contact",
             "email", "phone", "address", "portfolio", "github", "linkedin",
-            "summary", "profile", "objective", "experience", "education"
+            "summary", "profile", "objective", "experience", "education",
+            "skills", "projects", "certifications", "technologies"
         ]
 
         for line in lines[:6]:
@@ -184,39 +191,71 @@ class ResumeParser:
 
     def _extract_experience(self, text: str) -> (List[Dict[str, Any]], float):
         experience_items = []
-        
+
         # 1. Search for explicit mentions like "5+ years of experience", "4 years experience"
         exp_mention = re.search(r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant\s*)?experience", text, flags=re.IGNORECASE)
         explicit_years = float(exp_mention.group(1)) if exp_mention else 0.0
 
-        # 2. Extract date ranges: e.g. "2018 - 2022", "Jan 2019 - Present", "05/2020 - 08/2023"
-        date_pattern = r"(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+)?(20\d{2}|19\d{2})\s*[-–—to]+\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+)?(20\d{2}|19\d{2}|Present|Current)"
+        # Month lookup map
+        month_map = {
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+        }
+
+        # 2. Extract date ranges: e.g. "Jan 2019 - Present", "05/2020 - 08/2023", "2018 - 2022"
+        date_pattern = r"(?:([A-Za-z]+|\d{1,2})[\s\/\.-]+)?(20\d{2}|19\d{2})\s*[-–—to]+\s*(?:([A-Za-z]+|\d{1,2})[\s\/\.-]+)?(20\d{2}|19\d{2}|Present|Current|Now)"
         matches = list(re.finditer(date_pattern, text, flags=re.IGNORECASE))
-        
+
         intervals = []
-        current_year = datetime.now().year
+        now = datetime.now()
+        current_year = now.year
+        current_month = now.month
 
         for m in matches:
-            start_yr = int(m.group(1))
-            end_val = m.group(2).lower()
-            if "present" in end_val or "current" in end_val:
-                end_yr = current_year
+            start_m_raw = m.group(1).lower().strip() if m.group(1) else None
+            start_yr = int(m.group(2))
+            end_m_raw = m.group(3).lower().strip() if m.group(3) else None
+            end_val = m.group(4).lower().strip()
+
+            # Determine start month
+            if start_m_raw and start_m_raw in month_map:
+                start_m = month_map[start_m_raw]
+            elif start_m_raw and start_m_raw.isdigit() and 1 <= int(start_m_raw) <= 12:
+                start_m = int(start_m_raw)
             else:
-                end_yr = int(end_val)
+                start_m = 1
 
-            duration = max(0.5, float(end_yr - start_yr))
-            if duration <= 40:  # reasonable cap
-                intervals.append((float(start_yr), float(end_yr)))
+            # Determine end month & year
+            if any(p in end_val for p in ["present", "current", "now"]):
+                end_yr = current_year
+                end_m = current_month
+            else:
+                end_yr = int(end_val) if end_val.isdigit() else current_year
+                if end_m_raw and end_m_raw in month_map:
+                    end_m = month_map[end_m_raw]
+                elif end_m_raw and end_m_raw.isdigit() and 1 <= int(end_m_raw) <= 12:
+                    end_m = int(end_m_raw)
+                else:
+                    end_m = 12
 
-                # Look for surrounding title
+            start_dec = start_yr + (start_m - 1) / 12.0
+            end_dec = end_yr + (end_m - 1) / 12.0
+
+            duration = max(0.2, end_dec - start_dec)
+            if 0 < duration <= 45.0:  # reasonable cap
+                intervals.append((start_dec, end_dec))
+
+                # Look for surrounding role title context
                 start_context = max(0, m.start() - 80)
                 context = text[start_context:m.start()].strip().split("\n")[-1]
-                title = context if len(context) > 3 and len(context) < 50 else "Professional Role"
+                title = context.strip() if 3 < len(context.strip()) < 50 else "Professional Role"
 
                 experience_items.append({
                     "title": title,
-                    "duration": f"{m.group(1)} - {m.group(2)}",
-                    "years": duration
+                    "duration": f"{m.group(2)} - {m.group(4)}",
+                    "years": round(duration, 1)
                 })
 
         # Merge overlapping date intervals to prevent double-counting parallel roles
@@ -229,7 +268,7 @@ class ResumeParser:
                     merged[-1] = (prev_start, max(prev_end, current[1]))
                 else:
                     merged.append(current)
-            calculated_years = sum(max(0.5, end - start) for start, end in merged)
+            calculated_years = sum(max(0.2, end - start) for start, end in merged)
         else:
             calculated_years = 0.0
 
