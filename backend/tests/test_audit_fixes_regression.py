@@ -1,0 +1,108 @@
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+
+def test_password_reset_token_replay_protection():
+    """Verify that password reset tokens cannot be reused once consumed."""
+    # 1. Request password reset token for existing recruiter
+    email = "recruiter@talentmatch.ai"
+    req_res = client.post("/api/auth/forgot-password", json={"email": email})
+    assert req_res.status_code == 200
+    token = req_res.json().get("reset_token")
+    assert token is not None
+
+    # 2. Reset password successfully
+    first_reset = client.post("/api/auth/reset-password", json={
+        "token": token,
+        "new_password": "Recruiter@123456"
+    })
+    assert first_reset.status_code == 200
+    assert "successfully updated" in first_reset.json()["message"].lower()
+
+    # 3. Attempt to reuse the SAME reset token immediately
+    replay_reset = client.post("/api/auth/reset-password", json={
+        "token": token,
+        "new_password": "HackerPassword999!"
+    })
+    assert replay_reset.status_code == 400
+    assert "already been used" in replay_reset.json()["detail"].lower() or "revoked" in replay_reset.json()["detail"].lower()
+
+
+def test_candidate_manual_creation_endpoint():
+    """Verify POST /api/candidates creates a candidate and associated skills properly."""
+    cand_data = {
+        "name": "Audit Test Candidate",
+        "email": "audit.test.cand@example.com",
+        "phone": "+1-555-019-2834",
+        "location": "San Francisco, CA",
+        "total_experience_years": 4.5,
+        "education": [{"degree": "Bachelor of Science in Computer Science", "institution": "UC Berkeley"}],
+        "skills": ["Python", "FastAPI", "React", "PostgreSQL", "Docker"],
+        "status": "new"
+    }
+    res = client.post("/api/candidates", json=cand_data)
+    assert res.status_code == 200
+    created = res.json()
+    assert created["id"]
+    assert created["name"] == "Audit Test Candidate"
+    assert created["email"] == "audit.test.cand@example.com"
+    assert created["total_experience_years"] == 4.5
+
+    # Verify skills were persisted and are returned
+    skills_res = client.get(f"/api/candidates/{created['id']}/skills")
+    assert skills_res.status_code == 200
+    skills = skills_res.json()
+    assert len(skills) == 5
+    skill_names = [s["skill_name"] for s in skills]
+    assert "Python" in skill_names
+    assert "FastAPI" in skill_names
+    assert "React" in skill_names
+
+    # Clean up created candidate
+    del_res = client.delete(f"/api/candidates/{created['id']}")
+    assert del_res.status_code == 200
+
+
+def test_enterprise_security_headers():
+    """Verify all HTTP responses carry enterprise-grade security headers."""
+    res = client.get("/health")
+    assert res.status_code == 200
+    headers = res.headers
+    assert headers.get("X-Content-Type-Options") == "nosniff"
+    assert headers.get("X-Frame-Options") == "DENY"
+    assert headers.get("X-XSS-Protection") == "1; mode=block"
+    assert headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+def test_cors_origin_policy():
+    """Verify CORS handles explicit origins with credentials correctly."""
+    res = client.options(
+        "/api/auth/me",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        }
+    )
+    # Status code 200 for OPTIONS preflight
+    assert res.status_code == 200
+    # Must not return wildcard '*' when credentials are true
+    allow_origin = res.headers.get("access-control-allow-origin")
+    assert allow_origin == "http://localhost:5173"
+    assert res.headers.get("access-control-allow-credentials") == "true"
+
+
+def test_nonexistent_entity_error_handling():
+    """Verify consistent 404 responses for invalid IDs across all entity endpoints."""
+    bad_id = "00000000-0000-0000-0000-000000000000"
+    
+    assert client.get(f"/api/jobs/{bad_id}").status_code == 404
+    assert client.get(f"/api/candidates/{bad_id}").status_code == 404
+    assert client.get(f"/api/resumes/{bad_id}/status").status_code == 404
+    assert client.get(f"/api/matching/analysis/{bad_id}").status_code == 404
+    assert client.delete(f"/api/shortlist/{bad_id}").status_code == 404
+    assert client.put(f"/api/notifications/{bad_id}/read").status_code == 404
+

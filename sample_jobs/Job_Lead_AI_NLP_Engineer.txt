@@ -1,0 +1,29 @@
+Job Title: Lead AI & NLP Engineer
+Company: Cognitive Systems Labs
+Location: San Francisco, CA / Hybrid
+Employment Type: Full-time
+Minimum Experience: 5 years
+Education Requirement: Master's Degree in Computer Science or AI/ML
+
+Job Overview:
+Join our advanced AI team to build semantic resume matching algorithms, vector embeddings, and LLM applications.
+
+Key Responsibilities:
+- Develop NLP pipelines using spaCy, Hugging Face Transformers, and Sentence Transformers.
+- Design vector similarity search pipelines using cosine similarity and vector databases.
+- Deploy scalable AI inference microservices with FastAPI and Docker.
+- Implement explainable AI scoring systems and evaluate ranking accuracy.
+
+Required Skills:
+- Python
+- PyTorch or TensorFlow
+- Sentence Transformers
+- spaCy
+- Scikit-learn
+- FastAPI
+- Docker
+
+Preferred Skills:
+- Vector Databases
+- AWS / GCP MLOps
+- LangChain / RAG architectures

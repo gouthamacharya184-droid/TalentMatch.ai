@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+backend/**/__pycache__/
+*.pyc
+.venv/
+venv/
+backend/venv/
+env/
+
+# Environment
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Build & Cache
+dist/
+frontend/dist/
+build/
+*.egg-info/
+.pytest_cache/
+backend/.pytest_cache/
+
+# Storage & Backups
+storage/uploads/*
+!storage/uploads/.gitkeep
+backend/uploads/*
+uploads/*
+backups/
+
+# Database
+*.db
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# AI Models (downloaded at runtime)
+models/
+
+# Logs
+*.log
+logs/
+backend/logs/
+
+# Test coverage
+htmlcov/
+.coverage
+coverage.xml
+
+

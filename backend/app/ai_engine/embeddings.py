@@ -1,0 +1,104 @@
+import logging
+from typing import List, Union
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class EmbeddingService:
+    """
+    Embedding service providing semantic vectors and cosine similarity.
+    Uses Sentence Transformers with a reliable Scikit-Learn TF-IDF fallback.
+    """
+
+    _instance = None
+    _model = None
+    _use_transformers = True
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(EmbeddingService, cls).__new__(cls)
+            cls._instance._initialize_model()
+        return cls._instance
+
+    def _initialize_model(self):
+        """Attempt to load SentenceTransformers model."""
+        try:
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
+            try:
+                # Fast path: load instantly from local cache if already present
+                self._model = SentenceTransformer(settings.EMBEDDING_MODEL, local_files_only=True)
+            except Exception:
+                # Fallback to online fetch if not cached yet
+                self._model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            self._use_transformers = True
+            logger.info("SentenceTransformer model loaded successfully.")
+        except Exception as e:
+            logger.warning(
+                f"SentenceTransformer model could not be loaded ({str(e)}). "
+                "Falling back to high-accuracy TF-IDF semantic vectorizer."
+            )
+            self._model = None
+            self._use_transformers = False
+
+    def compute_similarity(self, text_a: str, text_b: str) -> float:
+        """
+        Compute semantic cosine similarity score between two texts in range [0.0, 1.0].
+        """
+        if not text_a or not text_b:
+            return 0.0
+
+        if text_a.strip().lower() == text_b.strip().lower():
+            return 1.0
+
+        # Method 1: Sentence Transformers
+        if self._use_transformers and self._model is not None:
+            try:
+                embeddings = self._model.encode([text_a, text_b], convert_to_numpy=True)
+                emb_a = embeddings[0].reshape(1, -1)
+                emb_b = embeddings[1].reshape(1, -1)
+                sim = float(cosine_similarity(emb_a, emb_b)[0][0])
+                # Normalize cosine similarity [-1, 1] to [0, 1]
+                normalized = max(0.0, min(1.0, (sim + 1.0) / 2.0))
+                return round(normalized, 4)
+            except Exception as e:
+                logger.warning(f"Transformer similarity failed: {e}. Falling back to TF-IDF.")
+
+        # Method 2: Scikit-learn TF-IDF Cosine Similarity Fallback
+        try:
+            vectorizer = TfidfVectorizer(ngram_range=(1, 2), stop_words="english")
+            tfidf_matrix = vectorizer.fit_transform([text_a, text_b])
+            sim = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0])
+            return round(max(0.0, min(1.0, sim)), 4)
+        except Exception as e:
+            logger.error(f"TF-IDF similarity failed: {e}")
+            return 0.0
+
+    def compute_batch_similarity(self, query: str, documents: List[str]) -> List[float]:
+        """Compute cosine similarity between one query and multiple documents."""
+        if not documents:
+            return []
+        return [self.compute_similarity(query, doc) for doc in documents]
+
+    def get_model_info(self) -> dict:
+        """Returns details about the actively loaded semantic embedding model."""
+        if self._use_transformers and self._model is not None:
+            return {
+                "model_name": settings.EMBEDDING_MODEL,
+                "is_transformer": True,
+                "engine": "Sentence Transformers (all-MiniLM-L6-v2)",
+                "embedding_dimension": 384,
+                "status": "active"
+            }
+        return {
+            "model_name": "TF-IDF N-Gram Vectorizer (Fallback)",
+            "is_transformer": False,
+            "engine": "Scikit-Learn TF-IDF",
+            "embedding_dimension": None,
+            "status": "fallback"
+        }
+

@@ -1,0 +1,32 @@
+Job Title: Senior Full-Stack Engineer
+Company: AVOM Consultants
+Location: Remote
+Employment Type: Full-time
+Minimum Experience: 4 years
+Education Requirement: Bachelor's Degree in Computer Science or related field
+
+Job Overview:
+We are seeking an experienced Senior Full-Stack Engineer to architect and build high-performance web applications for our enterprise SaaS recruitment platform.
+You will work with modern technologies including Python (FastAPI), React, TypeScript, and PostgreSQL.
+
+Key Responsibilities:
+- Design and develop scalable RESTful APIs with Python and FastAPI.
+- Build responsive, accessible, and high-performance UI components using React and TypeScript.
+- Architect relational database models and optimize queries in PostgreSQL.
+- Containerize services with Docker and manage deployment pipelines.
+- Integrate automated testing and CI/CD workflows.
+
+Required Technical Skills:
+- Python
+- FastAPI
+- React
+- TypeScript
+- PostgreSQL
+- Docker
+- REST APIs
+
+Preferred Qualifications:
+- Redis caching
+- AWS Cloud deployment
+- Tailwind CSS
+- Kubernetes container orchestration
