@@ -1,10 +1,9 @@
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from app.api.deps import get_db, get_current_user, get_optional_current_user
-from app.models.all_models import Campaign, Job, Candidate, MatchingAnalysis, User, generate_uuid, utc_now
+from app.api.deps import get_db, get_optional_current_user
+from app.models.all_models import Campaign, User, generate_uuid, utc_now
 from app.schemas.all_schemas import (
     CampaignCreate,
     CampaignUpdate,

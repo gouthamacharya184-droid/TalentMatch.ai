@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user, get_optional_current_user
+from app.api.deps import get_db, get_optional_current_user
 from app.models.all_models import User, Shortlist
 from app.schemas.all_schemas import (
     ShortlistCreate,

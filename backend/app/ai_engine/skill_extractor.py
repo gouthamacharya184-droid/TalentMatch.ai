@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any
 from app.ai_engine.skill_dictionary import FLATTENED_SKILLS, SKILL_SYNONYMS
 
 

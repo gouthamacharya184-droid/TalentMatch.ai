@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.database.session import Base, engine, SessionLocal
@@ -128,7 +127,6 @@ async def custom_404_handler(request: Request, exc):
 
 @app.exception_handler(Exception)
 async def custom_500_handler(request: Request, exc: Exception):
-    import traceback
     logger.exception(f"Unhandled error handling {request.method} {request.url.path}: {exc}")
     return JSONResponse(
         status_code=500,

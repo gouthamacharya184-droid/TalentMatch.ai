@@ -2,8 +2,7 @@ import os
 import uuid
 import hashlib
 import logging
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, timezone
+from typing import Dict, Optional, Tuple
 import httpx
 from fastapi import UploadFile
 from sqlalchemy.orm import Session

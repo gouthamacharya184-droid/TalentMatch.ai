@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.models.all_models import Shortlist, RecruiterNote, Candidate, Job, MatchingAnalysis
+from app.models.all_models import Shortlist, RecruiterNote, Candidate
 from app.services.notification_service import NotificationService
 
 

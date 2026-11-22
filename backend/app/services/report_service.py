@@ -1,7 +1,6 @@
 import io
 import csv
-from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from typing import List, Any
 from app.models.all_models import Job, MatchingAnalysis
 
 
@@ -63,7 +62,7 @@ class ReportService:
     @staticmethod
     def export_excel(job: Job, analyses: List[MatchingAnalysis]) -> io.BytesIO:
         import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.styles import Font, PatternFill, Alignment
 
         wb = openpyxl.Workbook()
         ws = wb.active

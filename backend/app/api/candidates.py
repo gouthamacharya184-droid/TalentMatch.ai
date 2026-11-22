@@ -92,7 +92,7 @@ def get_candidate_skills(candidate_id: str, db: Session = Depends(get_db)):
 @router.get("/{candidate_id}/evidence", response_model=List[dict])
 def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
     """Retrieve all traceable evidence references with page citations for this candidate."""
-    from app.models.all_models import EvidenceReference, Candidate, Resume
+    from app.models.all_models import EvidenceReference
     cand = cand_service.get_candidate(db, candidate_id)
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")

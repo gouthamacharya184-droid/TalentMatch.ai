@@ -3,14 +3,13 @@ import uuid
 import shutil
 import logging
 from typing import List, Optional
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.api.deps import get_db, get_optional_current_user
-from app.models.all_models import User, Resume
+from app.models.all_models import User
 from app.schemas.all_schemas import ResumeResponse, PaginatedResponse
 from app.services.resume_service import ResumeService
 

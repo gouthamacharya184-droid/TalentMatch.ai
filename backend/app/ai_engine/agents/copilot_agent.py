@@ -4,19 +4,14 @@ import re
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import desc
 
 from app.ai_engine.agents.base_agent import BaseAgent
 from app.models.all_models import (
     Job,
-    JobRequirement,
     Candidate,
-    CandidateSkill,
-    Resume,
     MatchingAnalysis,
-    Shortlist,
-    EvidenceReference,
-    InterviewKit
+    EvidenceReference
 )
 
 logger = logging.getLogger(__name__)

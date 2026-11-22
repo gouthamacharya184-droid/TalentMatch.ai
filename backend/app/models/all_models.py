@@ -10,7 +10,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     JSON,
-    Index,
 )
 from sqlalchemy.orm import relationship
 from app.database.session import Base

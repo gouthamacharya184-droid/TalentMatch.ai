@@ -1,7 +1,7 @@
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.models.all_models import Candidate, CandidateSkill, Resume, MatchingAnalysis
+from app.models.all_models import Candidate, CandidateSkill
 from app.schemas.all_schemas import CandidateUpdate, CandidateCreate
 
 

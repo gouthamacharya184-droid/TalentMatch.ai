@@ -3,7 +3,7 @@ import re
 import math
 import logging
 import hashlib
-from typing import List, Union, Optional, Dict
+from typing import List, Optional, Dict
 from collections import Counter
 import numpy as np
 import httpx

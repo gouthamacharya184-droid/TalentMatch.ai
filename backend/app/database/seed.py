@@ -9,7 +9,6 @@ from app.models.all_models import (
     CandidateSkill,
     Resume,
     MatchingAnalysis,
-    ScoreBreakdown,
     Shortlist,
     Notification,
     ActivityLog

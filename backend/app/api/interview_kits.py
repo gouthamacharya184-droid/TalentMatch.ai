@@ -1,9 +1,9 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user, get_optional_current_user
-from app.models.all_models import InterviewKit, Candidate, Job, MatchingAnalysis, User, utc_now
+from app.api.deps import get_db, get_optional_current_user
+from app.models.all_models import InterviewKit, Candidate, Job, MatchingAnalysis, User
 from app.schemas.all_schemas import (
     InterviewKitResponse,
     InterviewKitGenerateRequest

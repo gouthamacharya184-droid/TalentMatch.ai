@@ -6,8 +6,6 @@ from sqlalchemy import desc
 from app.models.all_models import (
     Job,
     Candidate,
-    CandidateSkill,
-    Resume,
     MatchingAnalysis,
     ScoreBreakdown,
     EvaluationRun,
@@ -16,7 +14,6 @@ from app.models.all_models import (
 )
 from app.ai_engine.agents.matching_agent import CandidateMatchingAgent
 from app.ai_engine.agents.interview_agent import InterviewIntelligenceAgent
-from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
