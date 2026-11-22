@@ -19,7 +19,7 @@ import {
 import { resumesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { formatApiError } from '../utils/errors';
-import type { Resume, Candidate } from '../types';
+import type { Resume } from '../types';
 
 export type QueueStatus = 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
 

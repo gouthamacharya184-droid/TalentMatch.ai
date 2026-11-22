@@ -1,11 +1,13 @@
-import time
 import logging
-from typing import Dict, Any, List, Optional
+import time
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai_engine.agents.base_agent import BaseAgent
-from app.ai_engine.embeddings import EmbeddingService
-from app.ai_engine.agents.skills_agent import TechnicalSkillsAgent
 from app.ai_engine.agents.experience_agent import ExperienceEvaluationAgent
+from app.ai_engine.agents.skills_agent import TechnicalSkillsAgent
+from app.ai_engine.embeddings import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -23,23 +25,23 @@ class CandidateMatchingAgent(BaseAgent):
         "projects": 25.0,
         "experience": 15.0,
         "preferred_skills": 15.0,
-        "education": 10.0
+        "education": 10.0,
     }
 
     def __init__(self):
         super().__init__(
             agent_name="CandidateMatchingAgent",
-            description="Computes explainable, weight-normalized recruitment match scores and What-If simulation deltas."
+            description="Computes explainable, weight-normalized recruitment match scores and What-If simulation deltas.",
         )
         self.embedding_service = EmbeddingService()
         self.skills_agent = TechnicalSkillsAgent()
         self.experience_agent = ExperienceEvaluationAgent()
 
-    def normalize_weights(self, weights: Optional[Dict[str, float]]) -> Dict[str, float]:
+    def normalize_weights(self, weights: dict[str, float] | None) -> dict[str, float]:
         """Validate and normalize scoring weights so they sum exactly to 100%."""
         if not weights:
             return dict(self.DEFAULT_WEIGHTS)
-        
+
         req = float(weights.get("required_skills", 35.0))
         proj = float(weights.get("projects", 25.0))
         exp = float(weights.get("experience", 15.0))
@@ -56,17 +58,17 @@ class CandidateMatchingAgent(BaseAgent):
             "projects": round((proj / total) * 100.0, 1),
             "experience": round((exp / total) * 100.0, 1),
             "preferred_skills": round((pref / total) * 100.0, 1),
-            "education": round((edu / total) * 100.0, 1)
+            "education": round((edu / total) * 100.0, 1),
         }
 
     def evaluate_match(
         self,
-        job_data: Dict[str, Any],
-        candidate_data: Dict[str, Any],
-        weights: Optional[Dict[str, float]] = None,
-        db: Optional[Session] = None,
-        candidate_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        job_data: dict[str, Any],
+        candidate_data: dict[str, Any],
+        weights: dict[str, float] | None = None,
+        db: Session | None = None,
+        candidate_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Evaluate candidate against job criteria with full explainability.
         Returns 0-100 overall score, 5 sub-scores, score breakdown, strengths, gaps, and uncertainty.
@@ -78,7 +80,6 @@ class CandidateMatchingAgent(BaseAgent):
         job_desc = job_data.get("description", "")
         job_reqs = job_data.get("requirements", [])
         min_exp = float(job_data.get("min_experience", 0.0))
-        edu_req = str(job_data.get("education_req", "Bachelor's Degree")).lower()
 
         cand_skills = candidate_data.get("skills", [])
         cand_projects = candidate_data.get("projects", [])
@@ -103,19 +104,23 @@ class CandidateMatchingAgent(BaseAgent):
             resume_text=resume_text,
             page_texts=page_texts,
             db=db,
-            candidate_id=candidate_id
+            candidate_id=candidate_id,
         )
-        
+
         req_evals = [e for e in skills_eval["evaluations"] if e["category"] == "mandatory"]
         pref_evals = [e for e in skills_eval["evaluations"] if e["category"] == "preferred"]
 
-        req_skills_score = round(
-            (sum(e["score_contribution"] for e in req_evals) / (len(req_evals) * 10.0)) * 100.0, 1
-        ) if req_evals else 80.0
+        req_skills_score = (
+            round((sum(e["score_contribution"] for e in req_evals) / (len(req_evals) * 10.0)) * 100.0, 1)
+            if req_evals
+            else 80.0
+        )
 
-        pref_skills_score = round(
-            (sum(e["score_contribution"] for e in pref_evals) / (len(pref_evals) * 5.0)) * 100.0, 1
-        ) if pref_evals else 70.0
+        pref_skills_score = (
+            round((sum(e["score_contribution"] for e in pref_evals) / (len(pref_evals) * 5.0)) * 100.0, 1)
+            if pref_evals
+            else 70.0
+        )
 
         # 2. Experience & Project Evaluation
         exp_eval = self.experience_agent.execute(
@@ -126,7 +131,7 @@ class CandidateMatchingAgent(BaseAgent):
             job_title=job_title,
             job_description=job_desc,
             db=db,
-            candidate_id=candidate_id
+            candidate_id=candidate_id,
         )
         exp_score = exp_eval["experience_score"]
         projects_score = exp_eval["project_depth_score"]
@@ -146,7 +151,7 @@ class CandidateMatchingAgent(BaseAgent):
 
         # 4. Dense Semantic Embedding Cosine Alignment (Supplementary validation)
         job_target = f"{job_title}. {job_desc[:600]}"
-        cand_doc = f"Experience: {cand_exp_years} yrs. Skills: {', '.join([s.get('skill_name','') for s in cand_skills])}. {resume_text[:1000]}"
+        cand_doc = f"Experience: {cand_exp_years} yrs. Skills: {', '.join([s.get('skill_name', '') for s in cand_skills])}. {resume_text[:1000]}"
         raw_semantic = self.embedding_service.compute_similarity(job_target, cand_doc)
         semantic_score = round(min(100.0, raw_semantic * 100.0), 1)
 
@@ -157,7 +162,9 @@ class CandidateMatchingAgent(BaseAgent):
         bounded_edu_score = round(min(10.0, (edu_score / 100.0) * 10.0), 1)
 
         # 5. Composite Overall Score Calculation (Sum of 4 standard components ensures exact mathematical equality)
-        overall_score = round(min(100.0, max(0.0, bounded_tech_score + bounded_semantic_score + bounded_exp_score + bounded_edu_score)), 1)
+        overall_score = round(
+            min(100.0, max(0.0, bounded_tech_score + bounded_semantic_score + bounded_exp_score + bounded_edu_score)), 1
+        )
         model_info = self.embedding_service.get_model_info()
 
         # 6. Extract Strengths and Gaps
@@ -168,15 +175,21 @@ class CandidateMatchingAgent(BaseAgent):
         related_skills = []
 
         for e in skills_eval["evaluations"]:
-            if e["evidence_classification"] in ["demonstrated_professionally", "demonstrated_in_project", "explicitly_mentioned"]:
-                matched_skills.append({
-                    "skill": e["skill"],
-                    "category": e["category"],
-                    "evidence": e["snippet"],
-                    "source_page": e["source_page"],
-                    "evidence_classification": e["evidence_classification"],
-                    "confidence": e["confidence"]
-                })
+            if e["evidence_classification"] in [
+                "demonstrated_professionally",
+                "demonstrated_in_project",
+                "explicitly_mentioned",
+            ]:
+                matched_skills.append(
+                    {
+                        "skill": e["skill"],
+                        "category": e["category"],
+                        "evidence": e["snippet"],
+                        "source_page": e["source_page"],
+                        "evidence_classification": e["evidence_classification"],
+                        "confidence": e["confidence"],
+                    }
+                )
                 if e["evidence_classification"] == "demonstrated_professionally":
                     strengths.append(f"Demonstrated professional delivery with {e['skill']}")
             elif e["evidence_classification"] == "weakly_inferred":
@@ -188,13 +201,12 @@ class CandidateMatchingAgent(BaseAgent):
 
         if exp_eval.get("is_fresher") and projects_score >= 70:
             strengths.append("Strong technical portfolio and practical implementation depth")
-        elif cand_exp_years >= min_exp and min_exp > 0:
+        elif cand_exp_years >= min_exp > 0:
             strengths.append(f"Exceeds minimum experience requirement ({cand_exp_years} yrs vs {min_exp} yrs required)")
 
         # 7. Uncertainty Assessment
         confidence_metric = round(
-            min(1.0, (candidate_data.get("parsing_confidence", 0.90) * 0.5) + (semantic_score / 100.0 * 0.5)),
-            2
+            min(1.0, (candidate_data.get("parsing_confidence", 0.90) * 0.5) + (semantic_score / 100.0 * 0.5)), 2
         )
         uncertainty_notes = None
         if missing_skills and len(missing_skills) > 4:
@@ -211,7 +223,7 @@ class CandidateMatchingAgent(BaseAgent):
             tokens_used=0,
             model_used="multi-criteria-matching-agent",
             input_summary=f"Matched candidate against {job_title}.",
-            output_summary=f"Overall score: {overall_score}/100. Req skills: {req_skills_score}, Projects: {projects_score}."
+            output_summary=f"Overall score: {overall_score}/100. Req skills: {req_skills_score}, Projects: {projects_score}.",
         )
 
         return {
@@ -235,18 +247,18 @@ class CandidateMatchingAgent(BaseAgent):
                 "weights_applied": active_weights,
                 "model_info": model_info,
                 "domain_relevance": exp_eval.get("domain_relevance", "Moderate"),
-                "fresher_verdict": exp_eval.get("fresher_friendly_verdict")
+                "fresher_verdict": exp_eval.get("fresher_friendly_verdict"),
             },
-            "model_info": model_info
+            "model_info": model_info,
         }
 
     def simulate_what_if(
         self,
-        job_data: Dict[str, Any],
-        candidate_evaluations: List[Dict[str, Any]],
-        new_weights: Optional[Dict[str, float]] = None,
-        modified_requirements: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        job_data: dict[str, Any],
+        candidate_evaluations: list[dict[str, Any]],
+        new_weights: dict[str, float] | None = None,
+        modified_requirements: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """
         Conduct a live recruiter What-If analysis.
         Simulates score and rank shifts across candidates when criteria or weights change.
@@ -258,7 +270,7 @@ class CandidateMatchingAgent(BaseAgent):
             cand_id = item["candidate_id"]
             cand_name = item.get("name", "Candidate")
             prev_score = float(item.get("previous_score", 0.0))
-            
+
             # Recompute component scores with new weights
             req_s = float(item.get("technical_score", prev_score))
             proj_s = float(item.get("projects_score", prev_score * 0.9))
@@ -275,22 +287,24 @@ class CandidateMatchingAgent(BaseAgent):
                             req_s = max(10.0, req_s - 15.0)
 
             sim_score = round(
-                (req_s * (weights["required_skills"] / 100.0)) +
-                (proj_s * (weights["projects"] / 100.0)) +
-                (exp_s * (weights["experience"] / 100.0)) +
-                (pref_s * (weights["preferred_skills"] / 100.0)) +
-                (edu_s * (weights["education"] / 100.0)),
-                1
+                (req_s * (weights["required_skills"] / 100.0))
+                + (proj_s * (weights["projects"] / 100.0))
+                + (exp_s * (weights["experience"] / 100.0))
+                + (pref_s * (weights["preferred_skills"] / 100.0))
+                + (edu_s * (weights["education"] / 100.0)),
+                1,
             )
             sim_score = max(0.0, min(100.0, sim_score))
 
-            simulated_results.append({
-                "candidate_id": cand_id,
-                "name": cand_name,
-                "previous_score": prev_score,
-                "simulated_score": sim_score,
-                "score_delta": round(sim_score - prev_score, 1),
-            })
+            simulated_results.append(
+                {
+                    "candidate_id": cand_id,
+                    "name": cand_name,
+                    "previous_score": prev_score,
+                    "simulated_score": sim_score,
+                    "score_delta": round(sim_score - prev_score, 1),
+                }
+            )
 
         # Calculate previous and new ranks
         simulated_results.sort(key=lambda x: x["previous_score"], reverse=True)
@@ -301,16 +315,28 @@ class CandidateMatchingAgent(BaseAgent):
         for rank, r in enumerate(simulated_results, 1):
             r["simulated_rank"] = rank
             r["rank_delta"] = r["previous_rank"] - rank
-            
+
             if r["rank_delta"] > 0:
-                r["impact_summary"] = f"Advanced +{r['rank_delta']} positions (Score: {r['simulated_score']} vs {r['previous_score']})"
+                r["impact_summary"] = (
+                    f"Advanced +{r['rank_delta']} positions (Score: {r['simulated_score']} vs {r['previous_score']})"
+                )
             elif r["rank_delta"] < 0:
-                r["impact_summary"] = f"Dropped {r['rank_delta']} positions (Score: {r['simulated_score']} vs {r['previous_score']})"
+                r["impact_summary"] = (
+                    f"Dropped {r['rank_delta']} positions (Score: {r['simulated_score']} vs {r['previous_score']})"
+                )
             else:
                 r["impact_summary"] = f"Rank unchanged (Score: {r['simulated_score']})"
 
-        avg_before = round(sum(r["previous_score"] for r in simulated_results) / len(simulated_results), 1) if simulated_results else 0.0
-        avg_after = round(sum(r["simulated_score"] for r in simulated_results) / len(simulated_results), 1) if simulated_results else 0.0
+        avg_before = (
+            round(sum(r["previous_score"] for r in simulated_results) / len(simulated_results), 1)
+            if simulated_results
+            else 0.0
+        )
+        avg_after = (
+            round(sum(r["simulated_score"] for r in simulated_results) / len(simulated_results), 1)
+            if simulated_results
+            else 0.0
+        )
         movers = sum(1 for r in simulated_results if abs(r["rank_delta"]) >= 2 or abs(r["score_delta"]) >= 5.0)
 
         return {
@@ -319,5 +345,5 @@ class CandidateMatchingAgent(BaseAgent):
             "average_score_before": avg_before,
             "average_score_after": avg_after,
             "significant_movers_count": movers,
-            "deltas": simulated_results
+            "deltas": simulated_results,
         }

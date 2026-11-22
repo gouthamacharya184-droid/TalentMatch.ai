@@ -1,9 +1,10 @@
-from typing import List, Optional, Dict, Any, Generic, TypeVar
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field
 
 try:
-    import email_validator
+    import email_validator  # noqa: F401
     from pydantic import EmailStr
 except ImportError:
     EmailStr = str  # Resilient fallback if email-validator is not present
@@ -13,7 +14,7 @@ T = TypeVar("T")
 
 # ── Generic Paginated Response ───────────────────────────
 class PaginatedResponse(BaseModel, Generic[T]):
-    items: List[T]
+    items: list[T]
     total: int
     skip: int
     limit: int
@@ -32,18 +33,18 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    role: Optional[str] = None
+    full_name: str | None = None
+    email: EmailStr | None = None
+    password: str | None = None
+    role: str | None = None
 
 
 class UserResponse(UserBase):
     id: str
     is_active: bool
-    last_login: Optional[datetime] = None
+    last_login: datetime | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -56,12 +57,12 @@ class RegisterRequest(BaseModel):
     full_name: str
     email: EmailStr
     password: str = Field(..., min_length=6)
-    role: Optional[str] = "recruiter"
+    role: str | None = "recruiter"
 
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: Optional[str] = None
+    refresh_token: str | None = None
     token_type: str = "bearer"
     user: UserResponse
 
@@ -93,7 +94,7 @@ class JobRequirementCreate(JobRequirementBase):
 class JobRequirementResponse(JobRequirementBase):
     id: str
     job_id: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -108,33 +109,33 @@ class JobBase(BaseModel):
 
 
 class JobCreate(JobBase):
-    requirements: Optional[List[JobRequirementCreate]] = None
+    requirements: list[JobRequirementCreate] | None = None
 
 
 class JobUpdate(BaseModel):
-    title: Optional[str] = None
-    company: Optional[str] = None
-    location: Optional[str] = None
-    employment_type: Optional[str] = None
-    min_experience: Optional[float] = None
-    education_req: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
-    requirements: Optional[List[JobRequirementCreate]] = None
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    employment_type: str | None = None
+    min_experience: float | None = None
+    education_req: str | None = None
+    description: str | None = None
+    status: str | None = None
+    requirements: list[JobRequirementCreate] | None = None
 
 
 class JobResponse(JobBase):
     id: str
-    user_id: Optional[str] = None
-    campaign_id: Optional[str] = None
+    user_id: str | None = None
+    campaign_id: str | None = None
     status: str
-    extracted_requirements: Optional[Dict[str, Any]] = None
-    scoring_weights: Optional[Dict[str, Any]] = None
+    extracted_requirements: dict[str, Any] | None = None
+    scoring_weights: dict[str, Any] | None = None
     criteria_approved: bool = False
-    criteria_approved_at: Optional[datetime] = None
-    requirements: List[JobRequirementResponse] = []
+    criteria_approved_at: datetime | None = None
+    requirements: list[JobRequirementResponse] = []
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -148,24 +149,24 @@ class CandidateSkillBase(BaseModel):
 class CandidateSkillResponse(CandidateSkillBase):
     id: str
     candidate_id: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class ResumeResponse(BaseModel):
     id: str
-    candidate_id: Optional[str] = None
-    candidate_name: Optional[str] = None
+    candidate_id: str | None = None
+    candidate_name: str | None = None
     original_filename: str
-    stored_filename: Optional[str] = None
-    filename: Optional[str] = None
+    stored_filename: str | None = None
+    filename: str | None = None
     file_type: str
-    file_size: Optional[int] = 0
-    raw_text: Optional[str] = None
+    file_size: int | None = 0
+    raw_text: str | None = None
     processing_status: str
-    status: Optional[str] = None
-    message: Optional[str] = None
-    error_message: Optional[str] = None
+    status: str | None = None
+    message: str | None = None
+    error_message: str | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -181,45 +182,47 @@ class ResumeResponse(BaseModel):
             if cand and getattr(cand, "name", None):
                 res.candidate_name = cand.name
         if res.message is None:
-            res.message = res.error_message or ("Resume processed successfully" if res.processing_status == "completed" else "Processing failed")
+            res.message = res.error_message or (
+                "Resume processed successfully" if res.processing_status == "completed" else "Processing failed"
+            )
         return res
 
 
 class CandidateBase(BaseModel):
     name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
     total_experience_years: float = 0.0
 
 
 class CandidateCreate(CandidateBase):
-    education: Optional[Any] = None
-    extracted_profile: Optional[Dict[str, Any]] = None
-    skills: Optional[List[str]] = None
-    status: Optional[str] = "new"
+    education: Any | None = None
+    extracted_profile: dict[str, Any] | None = None
+    skills: list[str] | None = None
+    status: str | None = "new"
 
 
 class CandidateUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    total_experience_years: Optional[float] = None
-    education: Optional[Any] = None
-    status: Optional[str] = None
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    total_experience_years: float | None = None
+    education: Any | None = None
+    status: str | None = None
 
 
 class CandidateResponse(CandidateBase):
     id: str
-    user_id: Optional[str] = None
-    education: Optional[Any] = None
-    extracted_profile: Optional[Dict[str, Any]] = None
+    user_id: str | None = None
+    education: Any | None = None
+    extracted_profile: dict[str, Any] | None = None
     status: str
-    skills: List[CandidateSkillResponse] = []
-    resume: Optional[ResumeResponse] = None
+    skills: list[CandidateSkillResponse] = []
+    resume: ResumeResponse | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -228,35 +231,35 @@ class MatchingAnalysisResponse(BaseModel):
     id: str
     job_id: str
     candidate_id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     overall_score: float
     technical_score: float
     semantic_score: float
     experience_score: float
     education_score: float
-    explanation: Optional[Dict[str, Any]] = None
-    strengths: List[str] = []
-    skill_gaps: List[str] = []
-    matched_skills: List[Dict[str, Any]] = []
-    missing_skills: List[str] = []
-    related_skills: List[str] = []
-    candidate: Optional[CandidateResponse] = None
-    job: Optional[JobResponse] = None
+    explanation: dict[str, Any] | None = None
+    strengths: list[str] = []
+    skill_gaps: list[str] = []
+    matched_skills: list[dict[str, Any]] = []
+    missing_skills: list[str] = []
+    related_skills: list[str] = []
+    candidate: CandidateResponse | None = None
+    job: JobResponse | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
 class MatchRequest(BaseModel):
     job_id: str
-    candidate_ids: Optional[List[str]] = None
-    weights: Optional[Dict[str, float]] = None
+    candidate_ids: list[str] | None = None
+    weights: dict[str, float] | None = None
 
 
 # ── Shortlist & Notes ─────────────────────────────────────
 class ShortlistCreate(BaseModel):
     job_id: str
     candidate_id: str
-    comments: Optional[str] = ""
+    comments: str | None = ""
 
 
 class ShortlistUpdateStatus(BaseModel):
@@ -267,37 +270,37 @@ class ShortlistResponse(BaseModel):
     id: str
     job_id: str
     candidate_id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     status: str
-    comments: Optional[str] = ""
-    candidate: Optional[CandidateResponse] = None
-    analysis: Optional[MatchingAnalysisResponse] = None
+    comments: str | None = ""
+    candidate: CandidateResponse | None = None
+    analysis: MatchingAnalysisResponse | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class RecruiterNoteCreate(BaseModel):
     candidate_id: str
-    job_id: Optional[str] = None
+    job_id: str | None = None
     content: str
 
 
 class RecruiterNoteResponse(BaseModel):
     id: str
     candidate_id: str
-    job_id: Optional[str] = None
-    user_id: Optional[str] = None
+    job_id: str | None = None
+    user_id: str | None = None
     content: str
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 # ── Comparison ────────────────────────────────────────────
 class CompareRequest(BaseModel):
     job_id: str
-    candidate_ids: List[str]
+    candidate_ids: list[str]
 
 
 class CandidateComparisonItem(BaseModel):
@@ -308,24 +311,24 @@ class CandidateComparisonItem(BaseModel):
 
 class SkillOverlapItem(BaseModel):
     skill: str
-    candidates: Dict[str, bool]
+    candidates: dict[str, bool]
 
 
 class ComparisonResponse(BaseModel):
     job: JobResponse
-    candidates: List[CandidateComparisonItem]
-    skill_overlap: List[SkillOverlapItem]
+    candidates: list[CandidateComparisonItem]
+    skill_overlap: list[SkillOverlapItem]
     model_config = ConfigDict(from_attributes=True)
 
 
 # ── Notifications & Activity ──────────────────────────────
 class NotificationResponse(BaseModel):
     id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     type: str
     title: str
     message: str
-    data: Optional[Dict[str, Any]] = None
+    data: dict[str, Any] | None = None
     is_read: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -333,11 +336,11 @@ class NotificationResponse(BaseModel):
 
 class ActivityLogResponse(BaseModel):
     id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     action: str
     entity_type: str
     entity_id: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -350,30 +353,30 @@ class DashboardStatsResponse(BaseModel):
     avg_matching_score: float
     total_shortlisted: int
     under_review: int
-    recent_jobs: List[JobResponse] = []
-    top_candidates: List[MatchingAnalysisResponse] = []
-    score_distribution: Dict[str, int] = {}
-    skills_availability: Dict[str, int] = {}
-    recent_activity: List[ActivityLogResponse] = []
+    recent_jobs: list[JobResponse] = []
+    top_candidates: list[MatchingAnalysisResponse] = []
+    score_distribution: dict[str, int] = {}
+    skills_availability: dict[str, int] = {}
+    recent_activity: list[ActivityLogResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 
 # ── Chatbot ───────────────────────────────────────────────
 class ChatbotMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
-    conversation_id: Optional[str] = None
-    job_id: Optional[str] = None
-    candidate_id: Optional[str] = None
-    page_context: Optional[str] = None
+    conversation_id: str | None = None
+    job_id: str | None = None
+    candidate_id: str | None = None
+    page_context: str | None = None
 
 
 class ChatbotMessageResponse(BaseModel):
     assistant_message: str
-    message: Optional[str] = None
-    response: Optional[str] = None
+    message: str | None = None
+    response: str | None = None
     conversation_id: str
-    relevant_data: Optional[Dict[str, Any]] = None
-    suggestions: Optional[List[str]] = None
+    relevant_data: dict[str, Any] | None = None
+    suggestions: list[str] | None = None
     mode: str = "llm"  # "llm" or "fallback"
 
     def model_post_init(self, __context: Any) -> None:
@@ -387,18 +390,18 @@ class ChatbotWelcomeResponse(BaseModel):
     welcome_message: str
     timestamp: str
     mode: str = "dynamic"
-    stats: Optional[Dict[str, Any]] = None
+    stats: dict[str, Any] | None = None
 
 
 # ── Enterprise Campaigns ─────────────────────────────────
 class CampaignBase(BaseModel):
     name: str
     department: str = "Engineering"
-    description: Optional[str] = None
+    description: str | None = None
     target_hires: int = 1
     status: str = "active"
-    target_date: Optional[str] = None
-    settings: Optional[Dict[str, Any]] = None
+    target_date: str | None = None
+    settings: dict[str, Any] | None = None
 
 
 class CampaignCreate(CampaignBase):
@@ -406,21 +409,21 @@ class CampaignCreate(CampaignBase):
 
 
 class CampaignUpdate(BaseModel):
-    name: Optional[str] = None
-    department: Optional[str] = None
-    description: Optional[str] = None
-    target_hires: Optional[int] = None
-    status: Optional[str] = None
-    target_date: Optional[str] = None
-    settings: Optional[Dict[str, Any]] = None
+    name: str | None = None
+    department: str | None = None
+    description: str | None = None
+    target_hires: int | None = None
+    status: str | None = None
+    target_date: str | None = None
+    settings: dict[str, Any] | None = None
 
 
 class CampaignResponse(CampaignBase):
     id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    jobs: List[JobResponse] = []
+    updated_at: datetime | None = None
+    jobs: list[JobResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -436,15 +439,15 @@ class ScoringWeights(BaseModel):
 class CriteriaApprovalRequest(BaseModel):
     job_id: str
     approved: bool = True
-    requirements: Optional[List[JobRequirementCreate]] = None
-    scoring_weights: Optional[ScoringWeights] = None
+    requirements: list[JobRequirementCreate] | None = None
+    scoring_weights: ScoringWeights | None = None
 
 
 class WhatIfSimulationRequest(BaseModel):
     job_id: str
-    weights: Optional[ScoringWeights] = None
-    modified_requirements: Optional[List[JobRequirementCreate]] = None
-    min_experience_override: Optional[float] = None
+    weights: ScoringWeights | None = None
+    modified_requirements: list[JobRequirementCreate] | None = None
+    min_experience_override: float | None = None
 
 
 class WhatIfCandidateDelta(BaseModel):
@@ -465,15 +468,15 @@ class WhatIfSimulationResponse(BaseModel):
     average_score_before: float
     average_score_after: float
     significant_movers_count: int
-    deltas: List[WhatIfCandidateDelta]
+    deltas: list[WhatIfCandidateDelta]
 
 
 # ── Evidence References ──────────────────────────────────
 class EvidenceReferenceResponse(BaseModel):
     id: str
     candidate_id: str
-    resume_id: Optional[str] = None
-    job_id: Optional[str] = None
+    resume_id: str | None = None
+    job_id: str | None = None
     criterion: str
     criterion_type: str
     snippet: str
@@ -491,23 +494,23 @@ class InterviewQuestionItem(BaseModel):
     question: str
     rationale: str
     expected_answer: str
-    rubric_levels: Dict[str, str] = {}  # "1": "poor", "3": "acceptable", "5": "exceptional"
-    follow_up_probes: List[str] = []
+    rubric_levels: dict[str, str] = {}  # "1": "poor", "3": "acceptable", "5": "exceptional"
+    follow_up_probes: list[str] = []
 
 
 class InterviewKitResponse(BaseModel):
     id: str
     candidate_id: str
     job_id: str
-    user_id: Optional[str] = None
-    questions: List[InterviewQuestionItem] = []
-    rubric_guidelines: Optional[Dict[str, Any]] = None
-    evaluation_notes: Optional[str] = None
+    user_id: str | None = None
+    questions: list[InterviewQuestionItem] = []
+    rubric_guidelines: dict[str, Any] | None = None
+    evaluation_notes: str | None = None
     status: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    candidate_name: Optional[str] = None
-    job_title: Optional[str] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    candidate_name: str | None = None
+    job_title: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -522,15 +525,15 @@ class AgentExecutionResponse(BaseModel):
     id: str
     agent_name: str
     task_name: str
-    target_entity_type: Optional[str] = None
-    target_entity_id: Optional[str] = None
+    target_entity_type: str | None = None
+    target_entity_id: str | None = None
     status: str
     duration_ms: int
     tokens_used: int
-    model_used: Optional[str] = None
-    input_summary: Optional[str] = None
-    output_summary: Optional[str] = None
-    error_message: Optional[str] = None
+    model_used: str | None = None
+    input_summary: str | None = None
+    output_summary: str | None = None
+    error_message: str | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -541,6 +544,4 @@ class AgentActivityStats(BaseModel):
     success_rate_percent: float
     avg_latency_ms: float
     total_tokens_consumed: int
-    recent_executions: List[AgentExecutionResponse] = []
-
-
+    recent_executions: list[AgentExecutionResponse] = []

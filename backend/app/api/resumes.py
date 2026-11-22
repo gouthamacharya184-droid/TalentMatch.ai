@@ -1,17 +1,17 @@
+import logging
 import os
+import shutil
 import tempfile
 import uuid
-import shutil
-import logging
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.api.deps import get_db, get_optional_current_user
+from app.core.config import settings
 from app.models.all_models import User
-from app.schemas.all_schemas import ResumeResponse, PaginatedResponse
+from app.schemas.all_schemas import PaginatedResponse, ResumeResponse
 from app.services.resume_service import ResumeService
 
 logger = logging.getLogger(__name__)
@@ -20,11 +20,11 @@ router = APIRouter(prefix="/resumes", tags=["Resumes"])
 resume_service = ResumeService()
 
 
-@router.post("/upload", response_model=List[ResumeResponse])
+@router.post("/upload", response_model=list[ResumeResponse])
 async def upload_resumes(
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     """
     Simultaneously upload 1 to 50 candidate resumes (.PDF, .DOCX, .TXT).
@@ -38,7 +38,7 @@ async def upload_resumes(
         raise HTTPException(status_code=400, detail="Maximum 50 resumes allowed per batch.")
 
     user_id = current_user.id if current_user else None
-    results: List[ResumeResponse] = []
+    results: list[ResumeResponse] = []
     max_size_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
 
     for file in files:
@@ -53,7 +53,7 @@ async def upload_resumes(
                 stored_filename=f"invalid_{uuid.uuid4()}{ext}",
                 file_size=0,
                 error_msg=f"Unsupported format '{ext}'. Allowed formats: {', '.join(settings.ALLOWED_EXTENSIONS)}",
-                user_id=user_id
+                user_id=user_id,
             )
             results.append(failed_resume)
             continue
@@ -69,7 +69,7 @@ async def upload_resumes(
                     stored_filename=stored_name,
                     file_size=size,
                     error_msg=save_err,
-                    user_id=user_id
+                    user_id=user_id,
                 )
                 results.append(failed_resume)
                 continue
@@ -87,7 +87,7 @@ async def upload_resumes(
                     stored_filename=stored_name,
                     file_size=size,
                     error_msg=f"File exceeds maximum allowed size ({settings.MAX_FILE_SIZE_MB}MB).",
-                    user_id=user_id
+                    user_id=user_id,
                 )
                 results.append(failed_resume)
                 continue
@@ -108,7 +108,7 @@ async def upload_resumes(
                 original_filename=filename,
                 stored_filename=stored_name,
                 file_size=size,
-                user_id=user_id
+                user_id=user_id,
             )
             results.append(resume_res)
 
@@ -121,19 +121,16 @@ async def upload_resumes(
                 original_filename=filename,
                 stored_filename=f"error_{uuid.uuid4()}",
                 file_size=0,
-                error_msg=f"Upload processing error: {str(e)}",
-                user_id=user_id
+                error_msg=f"Upload processing error: {e!s}",
+                user_id=user_id,
             )
             results.append(failed_resume)
 
     return results
 
 
-@router.post("/load-sample-batch", response_model=List[ResumeResponse])
-def load_sample_batch(
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
-):
+@router.post("/load-sample-batch", response_model=list[ResumeResponse])
+def load_sample_batch(db: Session = Depends(get_db), current_user: User | None = Depends(get_optional_current_user)):
     """
     Load and parse the 15 pre-generated demo candidate resumes (.PDF and .DOCX).
     Prevents duplicate creation when demo resumes are already loaded.
@@ -143,8 +140,8 @@ def load_sample_batch(
     if not os.path.exists(sample_dir):
         raise HTTPException(status_code=404, detail="Sample resumes directory not found.")
 
-    files = [f for f in os.listdir(sample_dir) if f.lower().endswith(('.pdf', '.docx', '.txt'))]
-    results: List[ResumeResponse] = []
+    files = [f for f in os.listdir(sample_dir) if f.lower().endswith((".pdf", ".docx", ".txt"))]
+    results: list[ResumeResponse] = []
 
     for fname in sorted(files):
         try:
@@ -168,7 +165,7 @@ def load_sample_batch(
                 original_filename=fname,
                 stored_filename=unique_name,
                 file_size=size,
-                user_id=user_id
+                user_id=user_id,
             )
             results.append(resume)
         except Exception as e:
@@ -179,8 +176,8 @@ def load_sample_batch(
                 original_filename=fname,
                 stored_filename=f"demo_error_{uuid.uuid4()}",
                 file_size=0,
-                error_msg=f"Failed to load demo resume: {str(e)}",
-                user_id=user_id
+                error_msg=f"Failed to load demo resume: {e!s}",
+                user_id=user_id,
             )
             results.append(failed)
 
@@ -191,16 +188,11 @@ def load_sample_batch(
 def get_resumes(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    status: str | None = None,
+    db: Session = Depends(get_db),
 ):
     resumes, total = resume_service.get_resumes(db, skip=skip, limit=limit, status=status)
-    return {
-        "items": [ResumeResponse.model_validate(r) for r in resumes],
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    }
+    return {"items": [ResumeResponse.model_validate(r) for r in resumes], "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/{resume_id}/status", response_model=ResumeResponse)
@@ -218,7 +210,6 @@ def get_resume(resume_id: str, db: Session = Depends(get_db)):
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
     return ResumeResponse.model_validate(resume)
-
 
 
 @router.get("/{resume_id}/download")
@@ -248,11 +239,7 @@ def download_resume(resume_id: str, db: Session = Depends(get_db)):
     if not any(real_path.startswith(root) for root in allowed_roots):
         raise HTTPException(status_code=403, detail="Access denied: file path is outside authorized storage directory.")
 
-    return FileResponse(
-        path=resume.file_path,
-        filename=resume.original_filename,
-        media_type="application/octet-stream"
-    )
+    return FileResponse(path=resume.file_path, filename=resume.original_filename, media_type="application/octet-stream")
 
 
 @router.get("/{resume_id}/view")
@@ -285,14 +272,19 @@ def view_resume(resume_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Access denied: file path is outside authorized storage directory.")
 
     ext = os.path.splitext(resume.file_path)[1].lower()
-    media_type = "application/pdf" if ext == ".pdf" else "text/plain; charset=utf-8" if ext == ".txt" else "application/octet-stream"
+    media_type = (
+        "application/pdf"
+        if ext == ".pdf"
+        else "text/plain; charset=utf-8"
+        if ext == ".txt"
+        else "application/octet-stream"
+    )
 
     return FileResponse(
         path=resume.file_path,
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{resume.original_filename}"'}
+        headers={"Content-Disposition": f'inline; filename="{resume.original_filename}"'},
     )
-
 
 
 @router.delete("/{resume_id}")

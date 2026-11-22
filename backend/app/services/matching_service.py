@@ -1,19 +1,20 @@
 import logging
-from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from typing import Any
 
+from sqlalchemy import desc
+from sqlalchemy.orm import Session
+
+from app.ai_engine.agents.interview_agent import InterviewIntelligenceAgent
+from app.ai_engine.agents.matching_agent import CandidateMatchingAgent
 from app.models.all_models import (
-    Job,
     Candidate,
+    EvaluationRun,
+    Job,
     MatchingAnalysis,
     ScoreBreakdown,
-    EvaluationRun,
     generate_uuid,
-    utc_now
+    utc_now,
 )
-from app.ai_engine.agents.matching_agent import CandidateMatchingAgent
-from app.ai_engine.agents.interview_agent import InterviewIntelligenceAgent
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +28,11 @@ class MatchingService:
         self,
         db: Session,
         job_id: str,
-        candidate_ids: Optional[List[str]] = None,
-        user_id: Optional[str] = None,
-        weights: Optional[Dict[str, float]] = None,
-        use_llm: bool = True
-    ) -> List[MatchingAnalysis]:
+        candidate_ids: list[str] | None = None,
+        user_id: str | None = None,
+        weights: dict[str, float] | None = None,
+        use_llm: bool = True,
+    ) -> list[MatchingAnalysis]:
         """
         Execute AI multi-criteria matching for candidates against job_id.
         If candidate_ids is None or empty, analyzes all existing candidates.
@@ -55,10 +56,10 @@ class MatchingService:
                     "skill_name": r.skill_name,
                     "category": r.category,
                     "skill_type": r.skill_type,
-                    "weight": r.weight if hasattr(r, "weight") else 1.0
+                    "weight": r.weight if hasattr(r, "weight") else 1.0,
                 }
                 for r in job.requirements
-            ]
+            ],
         }
 
         query = db.query(Candidate)
@@ -77,7 +78,7 @@ class MatchingService:
             weights_snapshot=active_weights,
             criteria_snapshot=[{"skill": r.skill_name, "category": r.category} for r in job.requirements],
             candidate_count=len(candidates),
-            created_at=utc_now()
+            created_at=utc_now(),
         )
         db.add(eval_run)
         db.flush()
@@ -85,15 +86,14 @@ class MatchingService:
         for candidate in candidates:
             # Delete any prior analysis for this job & candidate pair to prevent duplicates
             db.query(MatchingAnalysis).filter(
-                MatchingAnalysis.job_id == job_id,
-                MatchingAnalysis.candidate_id == candidate.id
+                MatchingAnalysis.job_id == job_id, MatchingAnalysis.candidate_id == candidate.id
             ).delete()
 
             cand_skills = [
                 {
                     "skill_name": s.skill_name,
                     "proficiency_level": s.proficiency_level,
-                    "evidence_type": s.evidence_type if hasattr(s, "evidence_type") else "explicit"
+                    "evidence_type": s.evidence_type if hasattr(s, "evidence_type") else "explicit",
                 }
                 for s in candidate.skills
             ]
@@ -106,19 +106,16 @@ class MatchingService:
                 "email": candidate.email,
                 "total_experience_years": candidate.total_experience_years,
                 "education": candidate.education or [],
-                "projects": candidate.projects or (candidate.extracted_profile.get("projects", []) if candidate.extracted_profile else []),
+                "projects": candidate.projects
+                or (candidate.extracted_profile.get("projects", []) if candidate.extracted_profile else []),
                 "experience": candidate.extracted_profile.get("experience", []) if candidate.extracted_profile else [],
                 "skills": cand_skills,
                 "raw_text": resume_text,
-                "page_texts": page_texts
+                "page_texts": page_texts,
             }
 
             match_result = self.matching_agent.evaluate_match(
-                job_data=job_data,
-                candidate_data=cand_dict,
-                weights=active_weights,
-                db=db,
-                candidate_id=candidate.id
+                job_data=job_data, candidate_data=cand_dict, weights=active_weights, db=db, candidate_id=candidate.id
             )
 
             analysis = MatchingAnalysis(
@@ -143,18 +140,43 @@ class MatchingService:
                 matched_skills=match_result["matched_skills"],
                 missing_skills=match_result["missing_skills"],
                 related_skills=match_result["related_skills"],
-                created_at=utc_now()
+                created_at=utc_now(),
             )
             db.add(analysis)
             db.flush()
 
             # Create detailed ScoreBreakdown items
             components_map = [
-                ("Required Skills", match_result["technical_score"], 100.0, active_weights.get("required_skills", 35.0)),
-                ("Projects & Implementation", match_result["projects_score"], 100.0, active_weights.get("projects", 25.0)),
-                ("Professional Experience", match_result["experience_score"], 100.0, active_weights.get("experience", 15.0)),
-                ("Preferred Skills", match_result["preferred_score"], 100.0, active_weights.get("preferred_skills", 15.0)),
-                ("Education & Certifications", match_result["education_score"], 100.0, active_weights.get("education", 10.0)),
+                (
+                    "Required Skills",
+                    match_result["technical_score"],
+                    100.0,
+                    active_weights.get("required_skills", 35.0),
+                ),
+                (
+                    "Projects & Implementation",
+                    match_result["projects_score"],
+                    100.0,
+                    active_weights.get("projects", 25.0),
+                ),
+                (
+                    "Professional Experience",
+                    match_result["experience_score"],
+                    100.0,
+                    active_weights.get("experience", 15.0),
+                ),
+                (
+                    "Preferred Skills",
+                    match_result["preferred_score"],
+                    100.0,
+                    active_weights.get("preferred_skills", 15.0),
+                ),
+                (
+                    "Education & Certifications",
+                    match_result["education_score"],
+                    100.0,
+                    active_weights.get("education", 10.0),
+                ),
             ]
             for comp_name, score_val, max_val, wt_pct in components_map:
                 sb = ScoreBreakdown(
@@ -163,7 +185,7 @@ class MatchingService:
                     score=score_val,
                     max_score=max_val,
                     weight_percentage=wt_pct,
-                    details={"score": score_val, "weight": wt_pct}
+                    details={"score": score_val, "weight": wt_pct},
                 )
                 db.add(sb)
 
@@ -185,7 +207,7 @@ class MatchingService:
 
         return analyses
 
-    def get_analysis(self, db: Session, analysis_id: str) -> Optional[MatchingAnalysis]:
+    def get_analysis(self, db: Session, analysis_id: str) -> MatchingAnalysis | None:
         return db.query(MatchingAnalysis).filter(MatchingAnalysis.id == analysis_id).first()
 
     def get_rankings(
@@ -194,8 +216,8 @@ class MatchingService:
         job_id: str,
         sort_by: str = "overall_score",
         sort_order: str = "desc",
-        min_score: Optional[float] = None
-    ) -> List[MatchingAnalysis]:
+        min_score: float | None = None,
+    ) -> list[MatchingAnalysis]:
         query = db.query(MatchingAnalysis).filter(MatchingAnalysis.job_id == job_id)
         if min_score is not None:
             query = query.filter(MatchingAnalysis.overall_score >= min_score)
@@ -212,10 +234,10 @@ class MatchingService:
         self,
         db: Session,
         job_id: str,
-        weights: Optional[Dict[str, float]] = None,
-        modified_requirements: Optional[List[Dict[str, Any]]] = None,
-        min_experience_override: Optional[float] = None
-    ) -> Dict[str, Any]:
+        weights: dict[str, float] | None = None,
+        modified_requirements: list[dict[str, Any]] | None = None,
+        min_experience_override: float | None = None,
+    ) -> dict[str, Any]:
         """Simulate criteria or weight adjustments without altering persisted records."""
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
@@ -230,27 +252,29 @@ class MatchingService:
         for a in analyses:
             cand = db.query(Candidate).filter(Candidate.id == a.candidate_id).first()
             if cand:
-                candidate_eval_data.append({
-                    "candidate_id": cand.id,
-                    "name": cand.name,
-                    "previous_score": a.overall_score,
-                    "technical_score": a.technical_score,
-                    "projects_score": a.projects_score,
-                    "experience_score": a.experience_score,
-                    "preferred_score": a.preferred_score,
-                    "education_score": a.education_score,
-                    "skills": [s.skill_name for s in cand.skills]
-                })
+                candidate_eval_data.append(
+                    {
+                        "candidate_id": cand.id,
+                        "name": cand.name,
+                        "previous_score": a.overall_score,
+                        "technical_score": a.technical_score,
+                        "projects_score": a.projects_score,
+                        "experience_score": a.experience_score,
+                        "preferred_score": a.preferred_score,
+                        "education_score": a.education_score,
+                        "skills": [s.skill_name for s in cand.skills],
+                    }
+                )
 
         job_dict = {
             "id": job.id,
             "title": job.title,
-            "min_experience": min_experience_override if min_experience_override is not None else job.min_experience
+            "min_experience": min_experience_override if min_experience_override is not None else job.min_experience,
         }
 
         return self.matching_agent.simulate_what_if(
             job_data=job_dict,
             candidate_evaluations=candidate_eval_data,
             new_weights=weights,
-            modified_requirements=modified_requirements
+            modified_requirements=modified_requirements,
         )

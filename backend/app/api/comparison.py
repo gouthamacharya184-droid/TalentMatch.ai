@@ -15,13 +15,9 @@ def compare_candidates(req: CompareRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Select at least 2 candidates to compare.")
 
     try:
-        result = comp_service.compare_candidates(
-            db=db,
-            job_id=req.job_id,
-            candidate_ids=req.candidate_ids
-        )
+        result = comp_service.compare_candidates(db=db, job_id=req.job_id, candidate_ids=req.candidate_ids)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Comparison failed: {e!s}")

@@ -1,12 +1,13 @@
+import hashlib
+import logging
+import math
 import os
 import re
-import math
-import logging
-import hashlib
-from typing import List, Optional, Dict
 from collections import Counter
-import numpy as np
+
 import httpx
+import numpy as np
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -24,11 +25,11 @@ class EmbeddingService:
     _instance = None
     _model = None
     _use_transformers = True
-    _embedding_cache: Dict[str, np.ndarray] = {}
+    _embedding_cache: dict[str, np.ndarray] = {}
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(EmbeddingService, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._embedding_cache = {}
             cls._instance._initialize_model()
         return cls._instance
@@ -37,6 +38,7 @@ class EmbeddingService:
         """Attempt to load SentenceTransformers model."""
         try:
             from sentence_transformers import SentenceTransformer
+
             logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
             try:
                 # Fast path: load instantly from local cache if already present
@@ -48,17 +50,17 @@ class EmbeddingService:
             logger.info("SentenceTransformer model loaded successfully.")
         except Exception as e:
             logger.info(
-                f"SentenceTransformer not loaded ({str(e)}). "
+                f"SentenceTransformer not loaded ({e!s}). "
                 "Active semantic modes: Google Gemini API embeddings + Deterministic TF-IDF."
             )
             self._model = None
             self._use_transformers = False
 
-    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
+    def _get_embedding(self, text: str) -> np.ndarray | None:
         """Retrieve embedding from cache or encode using SentenceTransformers."""
         if not self._use_transformers or self._model is None:
             return None
-        text_hash = hashlib.sha256(f"st_{text}".encode("utf-8")).hexdigest()
+        text_hash = hashlib.sha256(f"st_{text}".encode()).hexdigest()
         if text_hash in self._embedding_cache:
             return self._embedding_cache[text_hash]
 
@@ -72,24 +74,19 @@ class EmbeddingService:
             logger.warning(f"Transformer encoding failed: {e}")
             return None
 
-    def _get_gemini_embedding(self, text: str) -> Optional[np.ndarray]:
+    def _get_gemini_embedding(self, text: str) -> np.ndarray | None:
         """Fetch high-precision 768-D semantic vector from Google Gemini API."""
         api_key = getattr(settings, "LLM_API_KEY", "") or os.environ.get("LLM_API_KEY", "")
         if not api_key or not api_key.strip() or api_key.strip() == "PASTE_YOUR_API_KEY_HERE":
             return None
 
-        text_hash = hashlib.sha256(f"gemini_{text}".encode("utf-8")).hexdigest()
+        text_hash = hashlib.sha256(f"gemini_{text}".encode()).hexdigest()
         if text_hash in self._embedding_cache:
             return self._embedding_cache[text_hash]
 
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key.strip()}"
-            payload = {
-                "model": "models/text-embedding-004",
-                "content": {
-                    "parts": [{"text": text[:2048]}]
-                }
-            }
+            payload = {"model": "models/text-embedding-004", "content": {"parts": [{"text": text[:2048]}]}}
             with httpx.Client(timeout=4.0) as client:
                 resp = client.post(url, json=payload)
                 if resp.status_code == 200:
@@ -115,10 +112,11 @@ class EmbeddingService:
         Pure-Python n-gram TF-IDF cosine similarity.
         Implements exact smooth-IDF formulation identical to Scikit-Learn without requiring heavy binary dependencies.
         """
+
         def extract_tokens(text: str):
             words = re.findall(r"\b[a-zA-Z0-9_+#.-]+\b", text.lower())
             unigrams = [w for w in words if len(w) > 1]
-            bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+            bigrams = [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)]
             return unigrams + bigrams
 
         tokens_a = extract_tokens(text_a)
@@ -166,6 +164,7 @@ class EmbeddingService:
             if emb_a is not None and emb_b is not None:
                 try:
                     from sklearn.metrics.pairwise import cosine_similarity
+
                     sim = float(cosine_similarity(emb_a.reshape(1, -1), emb_b.reshape(1, -1))[0][0])
                     normalized = max(0.0, min(1.0, (sim + 1.0) / 2.0))
                     return round(normalized, 4)
@@ -191,6 +190,7 @@ class EmbeddingService:
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.metrics.pairwise import cosine_similarity
+
             vectorizer = TfidfVectorizer(ngram_range=(1, 2), stop_words="english")
             tfidf_matrix = vectorizer.fit_transform([text_a, text_b])
             sim = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0])
@@ -198,7 +198,7 @@ class EmbeddingService:
         except Exception:
             return self._pure_tfidf_similarity(text_a, text_b)
 
-    def compute_batch_similarity(self, query: str, documents: List[str]) -> List[float]:
+    def compute_batch_similarity(self, query: str, documents: list[str]) -> list[float]:
         """Compute cosine similarity between one query and multiple documents."""
         if not documents:
             return []
@@ -212,7 +212,7 @@ class EmbeddingService:
                 "is_transformer": True,
                 "engine": "Sentence Transformers (all-MiniLM-L6-v2)",
                 "embedding_dimension": 384,
-                "status": "active"
+                "status": "active",
             }
         api_key = getattr(settings, "LLM_API_KEY", "") or os.environ.get("LLM_API_KEY", "")
         if api_key and api_key.strip() != "PASTE_YOUR_API_KEY_HERE":
@@ -221,12 +221,12 @@ class EmbeddingService:
                 "is_transformer": True,
                 "engine": "Gemini Embeddings API",
                 "embedding_dimension": 768,
-                "status": "active_cloud"
+                "status": "active_cloud",
             }
         return {
             "model_name": "TF-IDF N-Gram Vectorizer (Deterministic)",
             "is_transformer": False,
             "engine": "Deterministic TF-IDF",
             "embedding_dimension": None,
-            "status": "fallback"
+            "status": "fallback",
         }

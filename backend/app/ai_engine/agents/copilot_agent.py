@@ -1,18 +1,14 @@
-import time
 import json
-import re
 import logging
-from typing import Dict, Any, List, Optional
-from sqlalchemy.orm import Session
+import re
+import time
+from typing import Any
+
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from app.ai_engine.agents.base_agent import BaseAgent
-from app.models.all_models import (
-    Job,
-    Candidate,
-    MatchingAnalysis,
-    EvidenceReference
-)
+from app.models.all_models import Candidate, EvidenceReference, Job, MatchingAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -28,32 +24,41 @@ class RecruiterCopilotAgent(BaseAgent):
     TOOLS = [
         {"name": "search_candidates", "description": "Search candidates by keywords, skills, or location."},
         {"name": "filter_candidates", "description": "Filter candidates by minimum match score or experience years."},
-        {"name": "get_candidate_profile", "description": "Retrieve full profile, skills, and projects for a candidate."},
-        {"name": "get_resume_evidence", "description": "Inspect exact resume text snippet and page citation for a skill."},
+        {
+            "name": "get_candidate_profile",
+            "description": "Retrieve full profile, skills, and projects for a candidate.",
+        },
+        {
+            "name": "get_resume_evidence",
+            "description": "Inspect exact resume text snippet and page citation for a skill.",
+        },
         {"name": "compare_candidates", "description": "Compare 2 to 4 candidates side-by-side for a job."},
-        {"name": "explain_score", "description": "Explain how a candidate's match score was calculated across weighted criteria."},
+        {
+            "name": "explain_score",
+            "description": "Explain how a candidate's match score was calculated across weighted criteria.",
+        },
         {"name": "get_top_candidates", "description": "Retrieve the top ranked candidates for the active job."},
-        {"name": "shortlist_candidate", "description": "Add candidate to job shortlist (requires confirmation)."}
+        {"name": "shortlist_candidate", "description": "Add candidate to job shortlist (requires confirmation)."},
     ]
 
     def __init__(self):
         super().__init__(
             agent_name="RecruiterCopilotAgent",
-            description="Autonomous recruiter assistant executing approved database tools and grounded reasoning."
+            description="Autonomous recruiter assistant executing approved database tools and grounded reasoning.",
         )
 
     def execute(
         self,
         db: Session,
         message: str,
-        conversation_id: Optional[str] = None,
-        job_id: Optional[str] = None,
-        candidate_id: Optional[str] = None,
-        conversation_history: Optional[List[Dict[str, str]]] = None
-    ) -> Dict[str, Any]:
+        conversation_id: str | None = None,
+        job_id: str | None = None,
+        candidate_id: str | None = None,
+        conversation_history: list[dict[str, str]] | None = None,
+    ) -> dict[str, Any]:
         """Execute copilot query with tool execution and grounded reasoning."""
         start_time = time.time()
-        
+
         # 1. Sanitize untrusted prompt input
         cleaned_msg = self.sanitize_untrusted_input(message)
 
@@ -72,7 +77,7 @@ class RecruiterCopilotAgent(BaseAgent):
                     user_message=cleaned_msg,
                     tool_name=executed_tool_name,
                     tool_data=tool_data,
-                    conversation_history=conversation_history
+                    conversation_history=conversation_history,
                 )
             except Exception as e:
                 logger.warning(f"Copilot LLM synthesis failed: {e}. Using deterministic response.")
@@ -91,7 +96,7 @@ class RecruiterCopilotAgent(BaseAgent):
             tokens_used=400 if self.llm_service.is_available() else 0,
             model_used=self.llm_service.model if self.llm_service.is_available() else "grounded-tool-router",
             input_summary=f"Query: {cleaned_msg[:120]}",
-            output_summary=f"Executed tool: {executed_tool_name}. Response length: {len(response_text)} chars."
+            output_summary=f"Executed tool: {executed_tool_name}. Response length: {len(response_text)} chars.",
         )
 
         # Build candidate reference pills for UI
@@ -112,21 +117,19 @@ class RecruiterCopilotAgent(BaseAgent):
             "requires_confirmation": requires_confirmation,
             "confirmation_action": tool_results.get("confirmation_action"),
             "candidate_references": candidate_refs,
-            "suggestions": self._get_contextual_suggestions(job_id, candidate_id)
+            "suggestions": self._get_contextual_suggestions(job_id, candidate_id),
         }
 
     def _route_and_execute_tools(
-        self,
-        db: Session,
-        message: str,
-        job_id: Optional[str],
-        candidate_id: Optional[str]
-    ) -> Dict[str, Any]:
+        self, db: Session, message: str, job_id: str | None, candidate_id: str | None
+    ) -> dict[str, Any]:
         """Parse query intent and invoke approved database tool safely."""
         lower = message.lower()
 
         # Tool: Shortlist Candidate (Requires Confirmation)
-        if any(w in lower for w in ["shortlist", "add to shortlist"]) and (candidate_id or re.search(r"shortlist\s+([a-zA-Z\s]+)", lower)):
+        if any(w in lower for w in ["shortlist", "add to shortlist"]) and (
+            candidate_id or re.search(r"shortlist\s+([a-zA-Z\s]+)", lower)
+        ):
             cand = None
             if candidate_id:
                 cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -144,9 +147,9 @@ class RecruiterCopilotAgent(BaseAgent):
                         "type": "SHORTLIST_CANDIDATE",
                         "candidate_id": cand.id,
                         "candidate_name": cand.name,
-                        "job_id": job_id
+                        "job_id": job_id,
                     },
-                    "data": {"id": cand.id, "name": cand.name, "job_id": job_id}
+                    "data": {"id": cand.id, "name": cand.name, "job_id": job_id},
                 }
 
         # Tool: Compare Candidates
@@ -157,25 +160,34 @@ class RecruiterCopilotAgent(BaseAgent):
                 if c.name.lower() in lower:
                     matched_candidates.append(c)
             if len(matched_candidates) >= 2:
-                from app.ai_engine.agents.comparison_agent import CandidateComparisonAgent
+                from app.ai_engine.agents.comparison_agent import (
+                    CandidateComparisonAgent,
+                )
+
                 comp_agent = CandidateComparisonAgent()
                 job = db.query(Job).filter(Job.id == job_id).first() if job_id else db.query(Job).first()
                 if job:
                     evals = []
                     for cand in matched_candidates[:3]:
-                        analysis = db.query(MatchingAnalysis).filter(
-                            MatchingAnalysis.candidate_id == cand.id,
-                            MatchingAnalysis.job_id == job.id
-                        ).first()
-                        evals.append({
-                            "candidate": {"id": cand.id, "name": cand.name},
-                            "analysis": {
-                                "overall_score": analysis.overall_score if analysis else 75.0,
-                                "technical_score": analysis.technical_score if analysis else 70.0,
-                                "matched_skills": analysis.matched_skills if analysis else []
+                        analysis = (
+                            db.query(MatchingAnalysis)
+                            .filter(MatchingAnalysis.candidate_id == cand.id, MatchingAnalysis.job_id == job.id)
+                            .first()
+                        )
+                        evals.append(
+                            {
+                                "candidate": {"id": cand.id, "name": cand.name},
+                                "analysis": {
+                                    "overall_score": analysis.overall_score if analysis else 75.0,
+                                    "technical_score": analysis.technical_score if analysis else 70.0,
+                                    "matched_skills": analysis.matched_skills if analysis else [],
+                                },
                             }
-                        })
-                    res = comp_agent.execute(job_data={"id": job.id, "title": job.title, "requirements": job.requirements}, candidate_evaluations=evals)
+                        )
+                    res = comp_agent.execute(
+                        job_data={"id": job.id, "title": job.title, "requirements": job.requirements},
+                        candidate_evaluations=evals,
+                    )
                     return {"tool_name": "compare_candidates", "data": res}
 
         # Tool: Explain Score
@@ -202,8 +214,8 @@ class RecruiterCopilotAgent(BaseAgent):
                             "experience_score": analysis.experience_score,
                             "strengths": analysis.strengths or [],
                             "skill_gaps": analysis.skill_gaps or [],
-                            "weights_used": analysis.weights_used
-                        }
+                            "weights_used": analysis.weights_used,
+                        },
                     }
 
         # Tool: Get Resume Evidence
@@ -224,7 +236,7 @@ class RecruiterCopilotAgent(BaseAgent):
                         "snippet": ev.snippet,
                         "page_number": ev.page_number,
                         "evidence_classification": ev.evidence_classification,
-                        "confidence": ev.confidence
+                        "confidence": ev.confidence,
                     }
                     for ev in ev_items[:5]
                 ]
@@ -233,12 +245,22 @@ class RecruiterCopilotAgent(BaseAgent):
                     "data": {
                         "candidate_id": target_cand.id,
                         "candidate_name": target_cand.name,
-                        "evidence": evidence_list
-                    }
+                        "evidence": evidence_list,
+                    },
                 }
 
         # Tool: Filter or Search by Skill
-        skill_keywords = ["python", "react", "fastapi", "docker", "aws", "kubernetes", "sql", "machine learning", "pytorch"]
+        skill_keywords = [
+            "python",
+            "react",
+            "fastapi",
+            "docker",
+            "aws",
+            "kubernetes",
+            "sql",
+            "machine learning",
+            "pytorch",
+        ]
         found_skills = [sk for sk in skill_keywords if sk in lower]
         if found_skills:
             matching_cands = []
@@ -246,18 +268,17 @@ class RecruiterCopilotAgent(BaseAgent):
                 c_skills = {s.skill_name.lower() for s in c.skills}
                 if any(fs in c_skills for fs in found_skills):
                     analysis = db.query(MatchingAnalysis).filter(MatchingAnalysis.candidate_id == c.id).first()
-                    matching_cands.append({
-                        "id": c.id,
-                        "name": c.name,
-                        "score": analysis.overall_score if analysis else 80.0,
-                        "experience_years": c.total_experience_years,
-                        "matching_skills": list(c_skills.intersection(found_skills))
-                    })
+                    matching_cands.append(
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "score": analysis.overall_score if analysis else 80.0,
+                            "experience_years": c.total_experience_years,
+                            "matching_skills": list(c_skills.intersection(found_skills)),
+                        }
+                    )
             matching_cands.sort(key=lambda x: x["score"], reverse=True)
-            return {
-                "tool_name": "filter_candidates_by_skill",
-                "data": matching_cands[:8]
-            }
+            return {"tool_name": "filter_candidates_by_skill", "data": matching_cands[:8]}
 
         # Default Tool: Top Candidates for Job or Overall
         top_query = db.query(MatchingAnalysis)
@@ -269,26 +290,21 @@ class RecruiterCopilotAgent(BaseAgent):
         for tm in top_matches:
             c = db.query(Candidate).filter(Candidate.id == tm.candidate_id).first()
             if c:
-                top_list.append({
-                    "id": c.id,
-                    "name": c.name,
-                    "score": tm.overall_score,
-                    "technical_score": tm.technical_score,
-                    "experience_years": c.total_experience_years
-                })
+                top_list.append(
+                    {
+                        "id": c.id,
+                        "name": c.name,
+                        "score": tm.overall_score,
+                        "technical_score": tm.technical_score,
+                        "experience_years": c.total_experience_years,
+                    }
+                )
 
-        return {
-            "tool_name": "get_top_candidates",
-            "data": top_list
-        }
+        return {"tool_name": "get_top_candidates", "data": top_list}
 
     def _synthesize_via_llm(
-        self,
-        user_message: str,
-        tool_name: str,
-        tool_data: Any,
-        conversation_history: Optional[List[Dict[str, str]]]
-    ) -> Optional[str]:
+        self, user_message: str, tool_name: str, tool_data: Any, conversation_history: list[dict[str, str]] | None
+    ) -> str | None:
         system_prompt = (
             "You are the TalentMatch AI Recruiter Copilot, an enterprise recruitment intelligence assistant. "
             "Use the provided verified database facts to formulate an executive, concise, and helpful response. "
@@ -305,20 +321,14 @@ User Query: {user_message}
 
 Executed Database Tool: {tool_name}
 Retrieved Database Facts:
-{json.dumps(tool_data, indent=2) if tool_data else 'No matching records found in database.'}
+{json.dumps(tool_data, indent=2) if tool_data else "No matching records found in database."}
 
 Formulate a concise, professional markdown response answering the recruiter's question directly based ONLY on the retrieved facts above.
 """
         messages.append({"role": "user", "content": prompt_content})
         return self.llm_service.generate_chat_response(messages=messages, system_prompt=system_prompt, max_tokens=1000)
 
-    def _synthesize_deterministic(
-        self,
-        message: str,
-        tool_name: str,
-        data: Any,
-        raw_result: Dict[str, Any]
-    ) -> str:
+    def _synthesize_deterministic(self, message: str, tool_name: str, data: Any, raw_result: dict[str, Any]) -> str:
         if raw_result.get("requires_confirmation"):
             action = raw_result.get("confirmation_action", {})
             return (
@@ -332,8 +342,12 @@ Formulate a concise, professional markdown response answering the recruiter's qu
                 return "No evaluated candidates were found for this criteria. Please ensure resumes have been uploaded and processed."
             lines = ["Here are the top ranked candidates based on verified multi-criteria match scores:\n"]
             for idx, c in enumerate(data, 1):
-                lines.append(f"{idx}. **{c['name']}** — **{c['score']}/100** ({c['experience_years']} yrs exp, Tech score: {c.get('technical_score', 'N/A')})")
-            lines.append("\nYou can ask me to compare any of these candidates or inspect their supporting resume evidence.")
+                lines.append(
+                    f"{idx}. **{c['name']}** — **{c['score']}/100** ({c['experience_years']} yrs exp, Tech score: {c.get('technical_score', 'N/A')})"
+                )
+            lines.append(
+                "\nYou can ask me to compare any of these candidates or inspect their supporting resume evidence."
+            )
             return "\n".join(lines)
 
         elif tool_name == "filter_candidates_by_skill":
@@ -354,7 +368,7 @@ Formulate a concise, professional markdown response answering the recruiter's qu
                 f"- **Technical Skills Score:** {data['technical_score']}/100",
                 f"- **Project Substance Score:** {data.get('projects_score', 'N/A')}/100",
                 f"- **Experience Score:** {data['experience_score']}/100\n",
-                "**Key Strengths:**"
+                "**Key Strengths:**",
             ]
             for s in data.get("strengths", [])[:3]:
                 lines.append(f"- {s}")
@@ -370,7 +384,9 @@ Formulate a concise, professional markdown response answering the recruiter's qu
                 return f"No evidence references have been indexed yet for {data.get('candidate_name')}."
             lines = [f"### Resume Evidence Citations for {data.get('candidate_name')}\n"]
             for ev in ev_list:
-                lines.append(f"- **{ev['criterion']}** (Page {ev['page_number']}, {ev['evidence_classification']}):\n  > \"{ev['snippet']}\"\n")
+                lines.append(
+                    f'- **{ev["criterion"]}** (Page {ev["page_number"]}, {ev["evidence_classification"]}):\n  > "{ev["snippet"]}"\n'
+                )
             return "\n".join(lines)
 
         elif tool_name == "compare_candidates":
@@ -383,14 +399,16 @@ Formulate a concise, professional markdown response answering the recruiter's qu
                 f"**Recommendation:** {data.get('executive_recommendation')}"
             )
 
-        return f"I analyzed your request ('{message}') against our recruitment database and verified the relevant records."
+        return (
+            f"I analyzed your request ('{message}') against our recruitment database and verified the relevant records."
+        )
 
-    def _get_contextual_suggestions(self, job_id: Optional[str], candidate_id: Optional[str]) -> List[str]:
+    def _get_contextual_suggestions(self, job_id: str | None, candidate_id: str | None) -> list[str]:
         suggestions = [
             "Show the top 5 candidates for this job",
             "Find candidates with Python and FastAPI experience",
             "Explain why the top candidate received their score",
-            "Compare the top 2 candidates side-by-side"
+            "Compare the top 2 candidates side-by-side",
         ]
         if candidate_id:
             suggestions.insert(0, "Show supporting resume evidence for this candidate")

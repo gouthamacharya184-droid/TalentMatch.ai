@@ -1,4 +1,5 @@
-from typing import Dict, Any, List
+from typing import Any
+
 from app.ai_engine.llm_service import LLMService
 
 
@@ -17,12 +18,12 @@ class CandidateInsights:
         self,
         candidate_name: str,
         overall_score: float,
-        matched_skills: List[Dict[str, Any]],
-        missing_skills: List[str],
+        matched_skills: list[dict[str, Any]],
+        missing_skills: list[str],
         experience_years: float,
         min_experience_required: float,
-        use_llm: bool = True
-    ) -> Dict[str, Any]:
+        use_llm: bool = True,
+    ) -> dict[str, Any]:
         """Generate structured recruiter insights."""
         # Try LLM generation first if available and enabled
         if use_llm and self.llm_service.is_available():
@@ -32,7 +33,7 @@ class CandidateInsights:
                 matched_skills=matched_skills,
                 missing_skills=missing_skills,
                 experience_years=experience_years,
-                min_experience_required=min_experience_required
+                min_experience_required=min_experience_required,
             )
             if llm_insights:
                 return llm_insights
@@ -62,7 +63,7 @@ class CandidateInsights:
             top_missing = [s for s in missing_skills if not s.endswith("(preferred)")][:3]
             if top_missing:
                 checklist.append(f"Verify candidate's familiarity with core requirements: {', '.join(top_missing)}.")
-        
+
         if experience_years < min_experience_required:
             checklist.append(
                 f"Candidate has {experience_years} years experience vs {min_experience_required} years specified. Assess project complexity and seniority."
@@ -88,6 +89,6 @@ class CandidateInsights:
             "key_highlights": [
                 f"{len(matched_skills)} technical competencies aligned",
                 f"{experience_years} years recorded experience",
-                f"{len(missing_skills)} gap areas to probe"
-            ]
+                f"{len(missing_skills)} gap areas to probe",
+            ],
         }

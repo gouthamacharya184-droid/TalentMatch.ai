@@ -1,8 +1,8 @@
 import os
-from typing import Dict, Any
+from typing import Any
 
 
-def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
+def extract_text_from_pdf(file_path: str) -> dict[str, Any]:
     """
     Extract text and metadata from PDF using PyMuPDF (fitz)
     with magic byte validation and fallback to pypdf.
@@ -42,22 +42,18 @@ def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
             if t:
                 text_content.append(t)
         doc.close()
-        
+
         extracted = "\n".join(text_content).strip()
         if extracted:
-            return {
-                "text": extracted,
-                "page_count": page_count,
-                "extractor": "PyMuPDF",
-                "error": None
-            }
-    except Exception as e:
+            return {"text": extracted, "page_count": page_count, "extractor": "PyMuPDF", "error": None}
+    except Exception:
         # Fall back to pypdf
         pass
 
     # 2. Fallback to pypdf
     try:
         import pypdf
+
         reader = pypdf.PdfReader(file_path)
         if reader.is_encrypted:
             return {"text": "", "page_count": 0, "error": "Password-protected PDF document"}
@@ -67,24 +63,15 @@ def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
             t = page.extract_text()
             if t:
                 text_content.append(t)
-        
+
         extracted = "\n".join(text_content).strip()
         if not extracted:
             return {
                 "text": "",
                 "page_count": page_count,
-                "error": "Document contains no readable text or is scanned image without OCR."
+                "error": "Document contains no readable text or is scanned image without OCR.",
             }
 
-        return {
-            "text": extracted,
-            "page_count": page_count,
-            "extractor": "pypdf",
-            "error": None
-        }
+        return {"text": extracted, "page_count": page_count, "extractor": "pypdf", "error": None}
     except Exception as e:
-        return {
-            "text": "",
-            "page_count": page_count,
-            "error": f"Failed to parse PDF: {str(e)}"
-        }
+        return {"text": "", "page_count": page_count, "error": f"Failed to parse PDF: {e!s}"}

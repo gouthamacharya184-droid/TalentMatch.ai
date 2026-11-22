@@ -1,7 +1,9 @@
-import time
 import logging
-from typing import Dict, Any, List, Optional
+import time
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai_engine.agents.base_agent import BaseAgent
 from app.ai_engine.skill_extractor import SkillExtractor
 
@@ -19,18 +21,18 @@ class JobDescriptionAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             agent_name="JobDescriptionIntelligenceAgent",
-            description="Extracts and normalizes role requirements, seniority, mandatory vs preferred skills, and detects criteria conflicts."
+            description="Extracts and normalizes role requirements, seniority, mandatory vs preferred skills, and detects criteria conflicts.",
         )
         self.skill_extractor = SkillExtractor()
 
     def execute(
         self,
         job_text: str,
-        job_title: Optional[str] = None,
-        company: Optional[str] = None,
-        db: Optional[Session] = None,
-        job_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        job_title: str | None = None,
+        company: str | None = None,
+        db: Session | None = None,
+        job_id: str | None = None,
+    ) -> dict[str, Any]:
         """Execute JD intelligence extraction with LLM reasoning and rule-based fallback."""
         start_time = time.time()
         tokens_est = len(job_text.split()) * 2
@@ -50,7 +52,7 @@ class JobDescriptionAgent(BaseAgent):
                         duration_ms=duration_ms,
                         tokens_used=tokens_est + 500,
                         input_summary=f"Analyzed JD: {job_title or 'Untitled'} ({len(job_text)} chars)",
-                        output_summary=f"Extracted {len(llm_result.get('mandatory_skills', []))} mandatory, {len(llm_result.get('preferred_skills', []))} preferred skills."
+                        output_summary=f"Extracted {len(llm_result.get('mandatory_skills', []))} mandatory, {len(llm_result.get('preferred_skills', []))} preferred skills.",
                     )
                     return llm_result
             except Exception as e:
@@ -69,11 +71,11 @@ class JobDescriptionAgent(BaseAgent):
             tokens_used=0,
             model_used="deterministic-rule-engine",
             input_summary=f"Analyzed JD: {job_title or 'Untitled'} ({len(job_text)} chars)",
-            output_summary=f"Fallback extracted {len(fallback_result.get('mandatory_skills', []))} mandatory skills."
+            output_summary=f"Fallback extracted {len(fallback_result.get('mandatory_skills', []))} mandatory skills.",
         )
         return fallback_result
 
-    def _extract_via_llm(self, job_text: str, job_title: Optional[str], company: Optional[str]) -> Optional[Dict[str, Any]]:
+    def _extract_via_llm(self, job_text: str, job_title: str | None, company: str | None) -> dict[str, Any] | None:
         framed_jd = self.frame_data("job_description", job_text)
         prompt = f"""
 You are the Job Description Intelligence Agent for an enterprise recruitment platform.
@@ -117,11 +119,12 @@ Return valid JSON with this exact schema:
 """
         return self.llm_service.generate_json(prompt)
 
-    def _extract_deterministic(self, job_text: str, job_title: Optional[str], company: Optional[str]) -> Dict[str, Any]:
+    def _extract_deterministic(self, job_text: str, job_title: str | None, company: str | None) -> dict[str, Any]:
         """High-precision regex and dictionary NLP extraction."""
         import re
+
         extracted_skills = self.skill_extractor.extract_skills(job_text)
-        
+
         # Seniority detection
         lower_text = (job_title or "" + " " + job_text).lower()
         seniority = "Mid-Level"
@@ -146,15 +149,15 @@ Return valid JSON with this exact schema:
                 pass
 
         # Split mandatory vs preferred
-        mandatory: List[Dict[str, Any]] = []
-        preferred: List[Dict[str, Any]] = []
+        mandatory: list[dict[str, Any]] = []
+        preferred: list[dict[str, Any]] = []
 
         for idx, item in enumerate(extracted_skills):
             skill_dict = {
                 "skill_name": item["skill_name"],
                 "skill_type": item["category"],
                 "category": "mandatory" if idx < 5 else "preferred",
-                "weight": 1.0 if idx < 5 else 0.5
+                "weight": 1.0 if idx < 5 else 0.5,
             }
             if idx < 5:
                 mandatory.append(skill_dict)
@@ -182,8 +185,10 @@ Return valid JSON with this exact schema:
             if title_match:
                 extracted_title = title_match.group(1).strip()
             else:
-                for line in [l.strip() for l in job_text.splitlines() if l.strip()][:5]:
-                    if len(line) < 60 and any(w in line.lower() for w in ["engineer", "developer", "architect", "lead", "manager"]):
+                for line in [line_item.strip() for line_item in job_text.splitlines() if line_item.strip()][:5]:
+                    if len(line) < 60 and any(
+                        w in line.lower() for w in ["engineer", "developer", "architect", "lead", "manager"]
+                    ):
                         extracted_title = line
                         break
         if not extracted_title:
@@ -199,7 +204,7 @@ Return valid JSON with this exact schema:
             "responsibilities": [
                 "Design, build, and deploy reliable software systems and services.",
                 "Collaborate with cross-functional product and engineering teams.",
-                "Participate in code reviews, architectural discussions, and technical mentorship."
+                "Participate in code reviews, architectural discussions, and technical mentorship.",
             ],
             "ambiguities_or_conflicts": ambiguities if ambiguities else ["None detected"],
             "recommended_weights": {
@@ -207,7 +212,7 @@ Return valid JSON with this exact schema:
                 "projects": 25.0,
                 "experience": 15.0,
                 "preferred_skills": 15.0,
-                "education": 10.0
+                "education": 10.0,
             },
-            "extraction_confidence": 0.85
+            "extraction_confidence": 0.85,
         }

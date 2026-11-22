@@ -1,9 +1,10 @@
-import re
 import logging
-from typing import Optional
+import re
+
 from sqlalchemy.orm import Session
-from app.models.all_models import AgentExecution, generate_uuid, utc_now
+
 from app.ai_engine.llm_service import LLMService
+from app.models.all_models import AgentExecution, generate_uuid, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class BaseAgent:
         """
         if not text:
             return ""
-        
+
         # 1. Truncate oversized text to prevent token flooding
         cleaned = text[:max_chars]
 
@@ -57,18 +58,18 @@ class BaseAgent:
 
     def record_execution(
         self,
-        db: Optional[Session],
+        db: Session | None,
         task_name: str,
-        target_entity_type: Optional[str],
-        target_entity_id: Optional[str],
+        target_entity_type: str | None,
+        target_entity_id: str | None,
         status: str,
         duration_ms: int,
         tokens_used: int = 0,
-        model_used: Optional[str] = None,
-        input_summary: Optional[str] = None,
-        output_summary: Optional[str] = None,
-        error_message: Optional[str] = None
-    ) -> Optional[AgentExecution]:
+        model_used: str | None = None,
+        input_summary: str | None = None,
+        output_summary: str | None = None,
+        error_message: str | None = None,
+    ) -> AgentExecution | None:
         """Record real agent telemetry directly into the database."""
         if not db:
             return None
@@ -87,7 +88,7 @@ class BaseAgent:
                 input_summary=input_summary[:500] if input_summary else None,
                 output_summary=output_summary[:500] if output_summary else None,
                 error_message=error_message[:500] if error_message else None,
-                created_at=utc_now()
+                created_at=utc_now(),
             )
             db.add(execution)
             db.commit()

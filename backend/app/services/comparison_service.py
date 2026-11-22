@@ -1,6 +1,8 @@
-from typing import List, Dict, Any
+from typing import Any
+
 from sqlalchemy.orm import Session
-from app.models.all_models import Job, Candidate, MatchingAnalysis
+
+from app.models.all_models import Candidate, Job, MatchingAnalysis
 from app.services.matching_service import MatchingService
 
 
@@ -8,12 +10,7 @@ class ComparisonService:
     def __init__(self):
         self.matching_service = MatchingService()
 
-    def compare_candidates(
-        self,
-        db: Session,
-        job_id: str,
-        candidate_ids: List[str]
-    ) -> Dict[str, Any]:
+    def compare_candidates(self, db: Session, job_id: str, candidate_ids: list[str]) -> dict[str, Any]:
         """
         Produce a side-by-side comparison for multiple candidates against the same job.
         Computes skill overlap matrix, score differences, strengths, and gaps.
@@ -34,10 +31,11 @@ class ComparisonService:
             if not cand:
                 continue
 
-            analysis = db.query(MatchingAnalysis).filter(
-                MatchingAnalysis.job_id == job_id,
-                MatchingAnalysis.candidate_id == c_id
-            ).first()
+            analysis = (
+                db.query(MatchingAnalysis)
+                .filter(MatchingAnalysis.job_id == job_id, MatchingAnalysis.candidate_id == c_id)
+                .first()
+            )
 
             # If no analysis exists, run it on the fly
             if not analysis:
@@ -45,10 +43,7 @@ class ComparisonService:
                 analysis = results[0] if results else None
 
             if cand and analysis:
-                candidates_data.append({
-                    "candidate": cand,
-                    "analysis": analysis
-                })
+                candidates_data.append({"candidate": cand, "analysis": analysis})
                 # Collect skills
                 for s in cand.skills:
                     all_skills_set.add(s.skill_name)
@@ -64,8 +59,4 @@ class ComparisonService:
                 entry["candidates"][c.id] = has_skill
             skill_overlap.append(entry)
 
-        return {
-            "job": job,
-            "candidates": candidates_data,
-            "skill_overlap": skill_overlap
-        }
+        return {"job": job, "candidates": candidates_data, "skill_overlap": skill_overlap}

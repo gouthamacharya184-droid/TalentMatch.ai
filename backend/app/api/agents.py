@@ -1,22 +1,21 @@
-from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
 
 from app.api.deps import get_db
 from app.models.all_models import AgentExecution
-from app.schemas.all_schemas import AgentExecutionResponse, AgentActivityStats
+from app.schemas.all_schemas import AgentActivityStats, AgentExecutionResponse
 
 router = APIRouter(prefix="/agents", tags=["Agent Observability"])
 
 
-@router.get("/executions", response_model=List[AgentExecutionResponse])
+@router.get("/executions", response_model=list[AgentExecutionResponse])
 def get_agent_executions(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    agent_name: Optional[str] = None,
-    status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    agent_name: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db),
 ):
     query = db.query(AgentExecution)
     if agent_name:
@@ -38,7 +37,7 @@ def get_agent_stats(db: Session = Depends(get_db)):
             "success_rate_percent": 100.0,
             "avg_latency_ms": 0.0,
             "total_tokens_consumed": 0,
-            "recent_executions": []
+            "recent_executions": [],
         }
 
     successful = db.query(AgentExecution).filter(AgentExecution.status.in_(["completed", "fallback"])).count()
@@ -58,5 +57,5 @@ def get_agent_stats(db: Session = Depends(get_db)):
         "success_rate_percent": success_rate,
         "avg_latency_ms": round(float(avg_lat), 1),
         "total_tokens_consumed": int(total_tokens),
-        "recent_executions": recent
+        "recent_executions": recent,
     }

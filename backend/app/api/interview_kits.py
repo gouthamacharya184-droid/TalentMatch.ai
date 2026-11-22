@@ -1,14 +1,10 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_optional_current_user
-from app.models.all_models import InterviewKit, Candidate, Job, MatchingAnalysis, User
-from app.schemas.all_schemas import (
-    InterviewKitResponse,
-    InterviewKitGenerateRequest
-)
 from app.ai_engine.agents.interview_agent import InterviewIntelligenceAgent
+from app.api.deps import get_db, get_optional_current_user
+from app.models.all_models import Candidate, InterviewKit, Job, MatchingAnalysis, User
+from app.schemas.all_schemas import InterviewKitGenerateRequest, InterviewKitResponse
 
 router = APIRouter(prefix="/interview-kits", tags=["Interview Intelligence"])
 interview_agent = InterviewIntelligenceAgent()
@@ -18,7 +14,7 @@ interview_agent = InterviewIntelligenceAgent()
 def generate_interview_kit(
     req: InterviewKitGenerateRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     candidate = db.query(Candidate).filter(Candidate.id == req.candidate_id).first()
     if not candidate:
@@ -29,26 +25,28 @@ def generate_interview_kit(
         raise HTTPException(status_code=404, detail="Job not found")
 
     # Get matched/missing skills from prior analysis if available
-    analysis = db.query(MatchingAnalysis).filter(
-        MatchingAnalysis.candidate_id == req.candidate_id,
-        MatchingAnalysis.job_id == req.job_id
-    ).first()
+    analysis = (
+        db.query(MatchingAnalysis)
+        .filter(MatchingAnalysis.candidate_id == req.candidate_id, MatchingAnalysis.job_id == req.job_id)
+        .first()
+    )
 
-    matched_skills = [m.get("skill", "") if isinstance(m, dict) else str(m) for m in (analysis.matched_skills or [])] if analysis else [s.skill_name for s in candidate.skills[:5]]
+    matched_skills = (
+        [m.get("skill", "") if isinstance(m, dict) else str(m) for m in (analysis.matched_skills or [])]
+        if analysis
+        else [s.skill_name for s in candidate.skills[:5]]
+    )
     missing_skills = analysis.missing_skills if analysis else []
 
     cand_dict = {
         "id": candidate.id,
         "name": candidate.name,
         "total_experience_years": candidate.total_experience_years,
-        "projects": candidate.projects or (candidate.extracted_profile.get("projects", []) if candidate.extracted_profile else []),
-        "force_regenerate": req.force_regenerate
+        "projects": candidate.projects
+        or (candidate.extracted_profile.get("projects", []) if candidate.extracted_profile else []),
+        "force_regenerate": req.force_regenerate,
     }
-    job_dict = {
-        "id": job.id,
-        "title": job.title,
-        "description": job.description
-    }
+    job_dict = {"id": job.id, "title": job.title, "description": job.description}
 
     kit_data = interview_agent.execute(
         candidate_data=cand_dict,
@@ -56,7 +54,7 @@ def generate_interview_kit(
         matched_skills=matched_skills,
         missing_skills=missing_skills,
         db=db,
-        save_to_db=True
+        save_to_db=True,
     )
 
     kit_data["candidate_name"] = candidate.name
@@ -65,15 +63,10 @@ def generate_interview_kit(
 
 
 @router.get("/candidate/{candidate_id}/job/{job_id}", response_model=InterviewKitResponse)
-def get_candidate_kit(
-    candidate_id: str,
-    job_id: str,
-    db: Session = Depends(get_db)
-):
-    kit = db.query(InterviewKit).filter(
-        InterviewKit.candidate_id == candidate_id,
-        InterviewKit.job_id == job_id
-    ).first()
+def get_candidate_kit(candidate_id: str, job_id: str, db: Session = Depends(get_db)):
+    kit = (
+        db.query(InterviewKit).filter(InterviewKit.candidate_id == candidate_id, InterviewKit.job_id == job_id).first()
+    )
 
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     job = db.query(Job).filter(Job.id == job_id).first()
@@ -90,7 +83,7 @@ def get_candidate_kit(
             "created_at": kit.created_at,
             "updated_at": kit.updated_at,
             "candidate_name": candidate.name if candidate else "Candidate",
-            "job_title": job.title if job else "Position"
+            "job_title": job.title if job else "Position",
         }
 
     # Generate on-demand if not already generated
@@ -101,7 +94,8 @@ def get_candidate_kit(
         "id": candidate.id,
         "name": candidate.name,
         "total_experience_years": candidate.total_experience_years,
-        "projects": candidate.projects or (candidate.extracted_profile.get("projects", []) if candidate.extracted_profile else []),
+        "projects": candidate.projects
+        or (candidate.extracted_profile.get("projects", []) if candidate.extracted_profile else []),
     }
     job_dict = {"id": job.id, "title": job.title, "description": job.description}
     kit_data = interview_agent.execute(
@@ -110,7 +104,7 @@ def get_candidate_kit(
         matched_skills=[s.skill_name for s in candidate.skills[:5]],
         missing_skills=[],
         db=db,
-        save_to_db=True
+        save_to_db=True,
     )
     kit_data["candidate_name"] = candidate.name
     kit_data["job_title"] = job.title
@@ -137,5 +131,5 @@ def get_interview_kit(kit_id: str, db: Session = Depends(get_db)):
         "created_at": kit.created_at,
         "updated_at": kit.updated_at,
         "candidate_name": candidate.name if candidate else "Candidate",
-        "job_title": job.title if job else "Position"
+        "job_title": job.title if job else "Position",
     }

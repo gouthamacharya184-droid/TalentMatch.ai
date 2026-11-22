@@ -1,8 +1,10 @@
-import time
 import json
 import logging
-from typing import Dict, Any, List, Optional
+import time
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai_engine.agents.base_agent import BaseAgent
 from app.models.all_models import InterviewKit, generate_uuid, utc_now
 
@@ -21,21 +23,21 @@ class InterviewIntelligenceAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             agent_name="InterviewIntelligenceAgent",
-            description="Generates evidence-backed technical questions, project deep-dives, claim-verification probes, and structured rubrics."
+            description="Generates evidence-backed technical questions, project deep-dives, claim-verification probes, and structured rubrics.",
         )
 
     def execute(
         self,
-        candidate_data: Dict[str, Any],
-        job_data: Dict[str, Any],
-        matched_skills: List[str],
-        missing_skills: List[str],
-        db: Optional[Session] = None,
-        save_to_db: bool = True
-    ) -> Dict[str, Any]:
+        candidate_data: dict[str, Any],
+        job_data: dict[str, Any],
+        matched_skills: list[str],
+        missing_skills: list[str],
+        db: Session | None = None,
+        save_to_db: bool = True,
+    ) -> dict[str, Any]:
         """Generate structured interview kit with LLM or deterministic fallback."""
         start_time = time.time()
-        
+
         cand_id = candidate_data.get("id") or candidate_data.get("candidate_id", "unknown")
         job_id = job_data.get("id", "unknown")
         cand_name = candidate_data.get("name", "Candidate")
@@ -45,10 +47,11 @@ class InterviewIntelligenceAgent(BaseAgent):
 
         # Check existing interview kit in DB if available
         if db and cand_id != "unknown" and job_id != "unknown" and not candidate_data.get("force_regenerate"):
-            existing = db.query(InterviewKit).filter(
-                InterviewKit.candidate_id == cand_id,
-                InterviewKit.job_id == job_id
-            ).first()
+            existing = (
+                db.query(InterviewKit)
+                .filter(InterviewKit.candidate_id == cand_id, InterviewKit.job_id == job_id)
+                .first()
+            )
             if existing:
                 return {
                     "id": existing.id,
@@ -60,7 +63,7 @@ class InterviewIntelligenceAgent(BaseAgent):
                     "rubric_guidelines": existing.rubric_guidelines,
                     "evaluation_notes": existing.evaluation_notes,
                     "status": existing.status,
-                    "created_at": existing.created_at.isoformat() if existing.created_at else None
+                    "created_at": existing.created_at.isoformat() if existing.created_at else None,
                 }
 
         # 1. Attempt LLM generation
@@ -73,10 +76,12 @@ class InterviewIntelligenceAgent(BaseAgent):
                     matched_skills=matched_skills,
                     missing_skills=missing_skills,
                     projects=projects,
-                    exp_years=exp_years
+                    exp_years=exp_years,
                 )
             except Exception as e:
-                logger.warning(f"InterviewAgent LLM generation failed: {e}. Falling back to deterministic rubric engine.")
+                logger.warning(
+                    f"InterviewAgent LLM generation failed: {e}. Falling back to deterministic rubric engine."
+                )
 
         # 2. Deterministic Fallback if LLM unavailable
         if not questions:
@@ -86,7 +91,7 @@ class InterviewIntelligenceAgent(BaseAgent):
                 matched_skills=matched_skills,
                 missing_skills=missing_skills,
                 projects=projects,
-                exp_years=exp_years
+                exp_years=exp_years,
             )
 
         rubric_guidelines = {
@@ -95,8 +100,8 @@ class InterviewIntelligenceAgent(BaseAgent):
                 "Technical Accuracy & Depth",
                 "Practical Problem-Solving Approach",
                 "Communication & Architectural Reasoning",
-                "Factual Consistency with Resume Claims"
-            ]
+                "Factual Consistency with Resume Claims",
+            ],
         }
 
         # 3. Persist to database if requested
@@ -110,7 +115,7 @@ class InterviewIntelligenceAgent(BaseAgent):
                     questions=questions,
                     rubric_guidelines=rubric_guidelines,
                     status="ready",
-                    created_at=utc_now()
+                    created_at=utc_now(),
                 )
                 db.add(kit_record)
                 db.commit()
@@ -131,7 +136,7 @@ class InterviewIntelligenceAgent(BaseAgent):
             tokens_used=600 if self.llm_service.is_available() else 0,
             model_used=self.llm_service.model if self.llm_service.is_available() else "deterministic-rubric-engine",
             input_summary=f"Generated kit for {cand_name} applying for {job_title}.",
-            output_summary=f"Created {len(questions)} structured interview questions with rubrics."
+            output_summary=f"Created {len(questions)} structured interview questions with rubrics.",
         )
 
         return {
@@ -144,27 +149,27 @@ class InterviewIntelligenceAgent(BaseAgent):
             "rubric_guidelines": rubric_guidelines,
             "evaluation_notes": f"Generated based on {len(matched_skills)} verified skills and {len(projects)} resume projects.",
             "status": "ready",
-            "created_at": utc_now()
+            "created_at": utc_now(),
         }
 
     def _generate_via_llm(
         self,
         job_title: str,
         cand_name: str,
-        matched_skills: List[str],
-        missing_skills: List[str],
-        projects: List[Dict[str, Any]],
-        exp_years: float
-    ) -> Optional[List[Dict[str, Any]]]:
+        matched_skills: list[str],
+        missing_skills: list[str],
+        projects: list[dict[str, Any]],
+        exp_years: float,
+    ) -> list[dict[str, Any]] | None:
         prompt = f"""
 You are the Interview Intelligence Agent for an enterprise recruitment platform.
 Generate 5 structured interview questions tailored to {cand_name} applying for '{job_title}'.
 
 Candidate Context:
 - Experience: {exp_years} years
-- Verified Skills: {', '.join(matched_skills[:6])}
-- Missing/Unverified Skills: {', '.join(missing_skills[:4]) if missing_skills else 'None'}
-- Projects: {json.dumps(projects[:2]) if projects else 'Standard software development projects'}
+- Verified Skills: {", ".join(matched_skills[:6])}
+- Missing/Unverified Skills: {", ".join(missing_skills[:4]) if missing_skills else "None"}
+- Projects: {json.dumps(projects[:2]) if projects else "Standard software development projects"}
 
 Include:
 1. One Core Technical Question (in-depth on verified skill)
@@ -201,15 +206,16 @@ Return a JSON array of objects under "questions" with this schema:
         self,
         job_title: str,
         cand_name: str,
-        matched_skills: List[str],
-        missing_skills: List[str],
-        projects: List[Dict[str, Any]],
-        exp_years: float
-    ) -> List[Dict[str, Any]]:
+        matched_skills: list[str],
+        missing_skills: list[str],
+        projects: list[dict[str, Any]],
+        exp_years: float,
+    ) -> list[dict[str, Any]]:
         primary_skill = matched_skills[0] if matched_skills else "Python"
-        secondary_skill = matched_skills[1] if len(matched_skills) > 1 else "REST APIs"
         missing_skill = missing_skills[0] if missing_skills else "distributed caching"
-        project_title = projects[0].get("title", "their primary project") if projects else "their most complex technical project"
+        project_title = (
+            projects[0].get("title", "their primary project") if projects else "their most complex technical project"
+        )
 
         return [
             {
@@ -220,13 +226,13 @@ Return a JSON array of objects under "questions" with this schema:
                 "expected_answer": f"Candidate should discuss memory management, asynchronous execution, proper error handling, testing frameworks, and profiling in {primary_skill}.",
                 "rubric_levels": {
                     "1": f"Superficial syntax knowledge; struggles to explain production bottlenecks in {primary_skill}.",
-                    "3": f"Solid familiarity with standard libraries, design patterns, and deployment configurations.",
-                    "5": f"Deep architectural mastery; explains memory internals, concurrency models, and low-level optimization strategies."
+                    "3": "Solid familiarity with standard libraries, design patterns, and deployment configurations.",
+                    "5": "Deep architectural mastery; explains memory internals, concurrency models, and low-level optimization strategies.",
                 },
                 "follow_up_probes": [
                     f"What was the most challenging bug you diagnosed when working with {primary_skill}?",
-                    "How do you monitor and debug unexpected latency spikes in production?"
-                ]
+                    "How do you monitor and debug unexpected latency spikes in production?",
+                ],
             },
             {
                 "id": "q2",
@@ -237,12 +243,12 @@ Return a JSON array of objects under "questions" with this schema:
                 "rubric_levels": {
                     "1": "Generic overview without technical specifics; unable to explain architectural trade-offs.",
                     "3": "Clear explanation of system layers, database interactions, and individual contributions.",
-                    "5": "Exceptional system clarity; details scaling limits, security choices, and what they would re-architect today."
+                    "5": "Exceptional system clarity; details scaling limits, security choices, and what they would re-architect today.",
                 },
                 "follow_up_probes": [
                     "If user traffic or data volume multiplied by 100x overnight, where would this system break first?",
-                    "What automated tests or CI/CD steps protected this system from regressions?"
-                ]
+                    "What automated tests or CI/CD steps protected this system from regressions?",
+                ],
             },
             {
                 "id": "q3",
@@ -253,12 +259,12 @@ Return a JSON array of objects under "questions" with this schema:
                 "rubric_levels": {
                     "1": "Fails to grasp race conditions or concurrent state conflicts.",
                     "3": "Implements unique tokens and database transactions correctly.",
-                    "5": "Comprehensive design covering distributed locking (Redis Redlock), idempotency persistence, replay protection, and rollback."
+                    "5": "Comprehensive design covering distributed locking (Redis Redlock), idempotency persistence, replay protection, and rollback.",
                 },
                 "follow_up_probes": [
                     "How do you handle client retries when the backend operation succeeded but the network timed out?",
-                    "What HTTP status codes and headers would your API return for duplicate requests?"
-                ]
+                    "What HTTP status codes and headers would your API return for duplicate requests?",
+                ],
             },
             {
                 "id": "q4",
@@ -269,12 +275,12 @@ Return a JSON array of objects under "questions" with this schema:
                 "rubric_levels": {
                     "1": "Defensive or attempts to exaggerate familiarity with unverified tooling.",
                     "3": "Transparent about experience gap; demonstrates strong conceptual understanding of adjacent technologies.",
-                    "5": "Demonstrates rapid self-guided mastery with working prototypes or analogous production implementations."
+                    "5": "Demonstrates rapid self-guided mastery with working prototypes or analogous production implementations.",
                 },
                 "follow_up_probes": [
                     f"How would you approach a critical task requiring {missing_skill} in your first two weeks?",
-                    "What documentation and debugging resources do you rely on when learning new infrastructure?"
-                ]
+                    "What documentation and debugging resources do you rely on when learning new infrastructure?",
+                ],
             },
             {
                 "id": "q5",
@@ -285,11 +291,11 @@ Return a JSON array of objects under "questions" with this schema:
                 "rubric_levels": {
                     "1": "Blames external factors; does not demonstrate structured root-cause analysis.",
                     "3": "Structured triage story with clear technical resolution and lessons learned.",
-                    "5": "Exemplary blameless post-mortem culture; implemented automated guards, monitoring alerts, and regression tests."
+                    "5": "Exemplary blameless post-mortem culture; implemented automated guards, monitoring alerts, and regression tests.",
                 },
                 "follow_up_probes": [
                     "What metrics or alerting signals first notified the team of the issue?",
-                    "How did you communicate system status to non-technical stakeholders during the incident?"
-                ]
-            }
+                    "How did you communicate system status to non-technical stakeholders during the incident?",
+                ],
+            },
         ]

@@ -1,22 +1,16 @@
-from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.models.all_models import Shortlist, RecruiterNote, Candidate
+
+from app.models.all_models import Candidate, RecruiterNote, Shortlist
 from app.services.notification_service import NotificationService
 
 
 class ShortlistService:
     def add_to_shortlist(
-        self,
-        db: Session,
-        job_id: str,
-        candidate_id: str,
-        user_id: Optional[str] = None,
-        comments: Optional[str] = ""
+        self, db: Session, job_id: str, candidate_id: str, user_id: str | None = None, comments: str | None = ""
     ) -> Shortlist:
-        existing = db.query(Shortlist).filter(
-            Shortlist.job_id == job_id,
-            Shortlist.candidate_id == candidate_id
-        ).first()
+        existing = (
+            db.query(Shortlist).filter(Shortlist.job_id == job_id, Shortlist.candidate_id == candidate_id).first()
+        )
 
         if existing:
             existing.comments = comments or existing.comments
@@ -26,11 +20,7 @@ class ShortlistService:
             return existing
 
         shortlist = Shortlist(
-            job_id=job_id,
-            candidate_id=candidate_id,
-            user_id=user_id,
-            status="shortlisted",
-            comments=comments or ""
+            job_id=job_id, candidate_id=candidate_id, user_id=user_id, status="shortlisted", comments=comments or ""
         )
         db.add(shortlist)
 
@@ -48,7 +38,7 @@ class ShortlistService:
             entity_type="candidate",
             entity_id=candidate_id,
             user_id=user_id,
-            details={"job_id": job_id, "status": "shortlisted"}
+            details={"job_id": job_id, "status": "shortlisted"},
         )
 
         return shortlist
@@ -67,10 +57,10 @@ class ShortlistService:
         db.commit()
         return True
 
-    def get_job_shortlists(self, db: Session, job_id: str) -> List[Shortlist]:
+    def get_job_shortlists(self, db: Session, job_id: str) -> list[Shortlist]:
         return db.query(Shortlist).filter(Shortlist.job_id == job_id).all()
 
-    def update_shortlist_status(self, db: Session, shortlist_id: str, status: str) -> Optional[Shortlist]:
+    def update_shortlist_status(self, db: Session, shortlist_id: str, status: str) -> Shortlist | None:
         shortlist = db.query(Shortlist).filter(Shortlist.id == shortlist_id).first()
         if not shortlist:
             return None
@@ -85,31 +75,16 @@ class ShortlistService:
         return shortlist
 
     def add_note(
-        self,
-        db: Session,
-        candidate_id: str,
-        content: str,
-        job_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        self, db: Session, candidate_id: str, content: str, job_id: str | None = None, user_id: str | None = None
     ) -> RecruiterNote:
         clean_job_id = job_id.strip() if (job_id and isinstance(job_id, str) and job_id.strip()) else None
-        note = RecruiterNote(
-            candidate_id=candidate_id,
-            job_id=clean_job_id,
-            user_id=user_id,
-            content=content
-        )
+        note = RecruiterNote(candidate_id=candidate_id, job_id=clean_job_id, user_id=user_id, content=content)
         db.add(note)
         db.commit()
         db.refresh(note)
         return note
 
-    def get_notes(
-        self,
-        db: Session,
-        candidate_id: str,
-        job_id: Optional[str] = None
-    ) -> List[RecruiterNote]:
+    def get_notes(self, db: Session, candidate_id: str, job_id: str | None = None) -> list[RecruiterNote]:
         query = db.query(RecruiterNote).filter(RecruiterNote.candidate_id == candidate_id)
         clean_job_id = job_id.strip() if (job_id and isinstance(job_id, str) and job_id.strip()) else None
         if clean_job_id:

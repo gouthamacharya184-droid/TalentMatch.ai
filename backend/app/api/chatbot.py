@@ -1,11 +1,16 @@
-from typing import Optional, List
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_optional_current_user
-from app.models.all_models import User, Job, Candidate, Resume, MatchingAnalysis
-from app.schemas.all_schemas import ChatbotMessageRequest, ChatbotMessageResponse, ChatbotWelcomeResponse
+from app.models.all_models import Candidate, Job, MatchingAnalysis, Resume, User
+from app.schemas.all_schemas import (
+    ChatbotMessageRequest,
+    ChatbotMessageResponse,
+    ChatbotWelcomeResponse,
+)
 from app.services.chatbot_service import ChatbotService
 
 router = APIRouter(prefix="/chatbot", tags=["AI Copilot"])
@@ -16,7 +21,7 @@ chatbot_service = ChatbotService()
 def chat_with_assistant(
     req: ChatbotMessageRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     """
     Recruiter Copilot Chat Endpoint.
@@ -36,16 +41,16 @@ def chat_with_assistant(
             job_id=req.job_id,
             candidate_id=req.candidate_id,
             page_context=req.page_context,
-            user=current_user
+            user=current_user,
         )
         return result
     except Exception as e:
         return ChatbotMessageResponse(
-            assistant_message=f"I encountered a temporary service glitch ({str(e)}). Please try asking again in a moment.",
+            assistant_message=f"I encountered a temporary service glitch ({e!s}). Please try asking again in a moment.",
             conversation_id=req.conversation_id or "default-conv",
             relevant_data=None,
             suggestions=["How is the candidate score calculated?", "Show me the top-ranked candidates."],
-            mode="fallback"
+            mode="fallback",
         )
 
 
@@ -57,12 +62,9 @@ def clear_conversation(conversation_id: str):
 
 
 @router.get("/welcome", response_model=ChatbotWelcomeResponse)
-def get_welcome_message(
-    page_context: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
+def get_welcome_message(page_context: str | None = Query(None), db: Session = Depends(get_db)):
     """Fetch personalized welcome greeting with live platform statistics."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     total_jobs = db.query(Job).count()
     total_candidates = db.query(Candidate).count()
@@ -73,7 +75,7 @@ def get_welcome_message(
         "total_jobs": total_jobs,
         "total_candidates": total_candidates,
         "total_resumes": total_resumes,
-        "avg_score": round(float(avg_score), 1)
+        "avg_score": round(float(avg_score), 1),
     }
 
     if page_context and "candidate" in page_context.lower():
@@ -91,13 +93,13 @@ def get_welcome_message(
 
     return {
         "welcome_message": welcome_text,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "mode": "dynamic",
-        "stats": stats
+        "stats": stats,
     }
 
 
-@router.get("/suggestions", response_model=List[str])
+@router.get("/suggestions", response_model=list[str])
 def get_suggestions():
     return [
         "How does AI resume matching work?",
@@ -105,5 +107,5 @@ def get_suggestions():
         "Show me the top-ranked candidates.",
         "Compare the top two candidates.",
         "What are the missing skills for a candidate?",
-        "Explain the recruitment dashboard."
+        "Explain the recruitment dashboard.",
     ]

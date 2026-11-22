@@ -1,4 +1,3 @@
-from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -7,9 +6,9 @@ from app.models.all_models import User
 from app.schemas.all_schemas import (
     CandidateCreate,
     CandidateResponse,
-    CandidateUpdate,
     CandidateSkillResponse,
-    PaginatedResponse
+    CandidateUpdate,
+    PaginatedResponse,
 )
 from app.services.candidate_service import CandidateService
 
@@ -21,7 +20,7 @@ cand_service = CandidateService()
 def create_candidate(
     cand_in: CandidateCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     user_id = current_user.id if current_user else None
     return cand_service.create_candidate(db, cand_in, user_id=user_id)
@@ -31,12 +30,12 @@ def create_candidate(
 def get_candidates(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    search: Optional[str] = None,
-    status: Optional[str] = None,
-    min_experience: Optional[float] = None,
-    max_experience: Optional[float] = None,
-    skill: Optional[str] = None,
-    db: Session = Depends(get_db)
+    search: str | None = None,
+    status: str | None = None,
+    min_experience: float | None = None,
+    max_experience: float | None = None,
+    skill: str | None = None,
+    db: Session = Depends(get_db),
 ):
     candidates, total = cand_service.get_candidates(
         db,
@@ -46,14 +45,9 @@ def get_candidates(
         status=status,
         min_experience=min_experience,
         max_experience=max_experience,
-        skill=skill
+        skill=skill,
     )
-    return {
-        "items": candidates,
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    }
+    return {"items": candidates, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)
@@ -65,11 +59,7 @@ def get_candidate(candidate_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/{candidate_id}", response_model=CandidateResponse)
-def update_candidate(
-    candidate_id: str,
-    cand_in: CandidateUpdate,
-    db: Session = Depends(get_db)
-):
+def update_candidate(candidate_id: str, cand_in: CandidateUpdate, db: Session = Depends(get_db)):
     cand = cand_service.update_candidate(db, candidate_id, cand_in)
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -84,15 +74,16 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db)):
     return {"message": "Candidate deleted successfully"}
 
 
-@router.get("/{candidate_id}/skills", response_model=List[CandidateSkillResponse])
+@router.get("/{candidate_id}/skills", response_model=list[CandidateSkillResponse])
 def get_candidate_skills(candidate_id: str, db: Session = Depends(get_db)):
     return cand_service.get_candidate_skills(db, candidate_id)
 
 
-@router.get("/{candidate_id}/evidence", response_model=List[dict])
+@router.get("/{candidate_id}/evidence", response_model=list[dict])
 def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
     """Retrieve all traceable evidence references with page citations for this candidate."""
     from app.models.all_models import EvidenceReference
+
     cand = cand_service.get_candidate(db, candidate_id)
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -111,7 +102,7 @@ def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
                 "page_number": ev.page_number,
                 "confidence": ev.confidence,
                 "evidence_classification": ev.evidence_classification,
-                "created_at": ev.created_at.isoformat() if ev.created_at else None
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
             }
             for ev in items
         ]
@@ -120,7 +111,7 @@ def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
     dyn_evidence = []
     resume = cand.resume
     full_text = (resume.raw_text if resume else "") or ""
-    page_texts = (resume.page_texts if resume and resume.page_texts else {"1": full_text})
+    page_texts = resume.page_texts if resume and resume.page_texts else {"1": full_text}
 
     for s in cand.skills:
         skill_lower = s.skill_name.lower()
@@ -137,19 +128,20 @@ def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
                 snippet = p_text[start:end].replace("\n", " ").strip()
                 break
 
-        dyn_evidence.append({
-            "id": f"dyn_{s.id}",
-            "candidate_id": cand.id,
-            "resume_id": resume.id if resume else None,
-            "job_id": None,
-            "criterion": s.skill_name,
-            "criterion_type": "skill",
-            "snippet": snippet,
-            "page_number": found_page,
-            "confidence": 0.95,
-            "evidence_classification": ev_class,
-            "created_at": cand.created_at.isoformat() if cand.created_at else None
-        })
+        dyn_evidence.append(
+            {
+                "id": f"dyn_{s.id}",
+                "candidate_id": cand.id,
+                "resume_id": resume.id if resume else None,
+                "job_id": None,
+                "criterion": s.skill_name,
+                "criterion_type": "skill",
+                "snippet": snippet,
+                "page_number": found_page,
+                "confidence": 0.95,
+                "evidence_classification": ev_class,
+                "created_at": cand.created_at.isoformat() if cand.created_at else None,
+            }
+        )
 
     return dyn_evidence
-

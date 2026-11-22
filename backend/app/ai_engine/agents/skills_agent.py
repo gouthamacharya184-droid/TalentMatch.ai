@@ -1,8 +1,10 @@
-import time
 import json
 import logging
-from typing import Dict, Any, List, Optional
+import time
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai_engine.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -25,29 +27,29 @@ class TechnicalSkillsAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             agent_name="TechnicalSkillsEvaluationAgent",
-            description="Assesses programming languages, frameworks, and tools with 6-tier evidence classification and source page citations."
+            description="Assesses programming languages, frameworks, and tools with 6-tier evidence classification and source page citations.",
         )
 
     def execute(
         self,
-        job_requirements: List[Dict[str, Any]],
-        candidate_skills: List[Dict[str, Any]],
-        candidate_projects: List[Dict[str, Any]],
-        candidate_experience: List[Dict[str, Any]],
+        job_requirements: list[dict[str, Any]],
+        candidate_skills: list[dict[str, Any]],
+        candidate_projects: list[dict[str, Any]],
+        candidate_experience: list[dict[str, Any]],
         resume_text: str,
-        page_texts: Optional[Dict[str, str]] = None,
-        db: Optional[Session] = None,
-        candidate_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        page_texts: dict[str, str] | None = None,
+        db: Session | None = None,
+        candidate_id: str | None = None,
+    ) -> dict[str, Any]:
         """Execute granular technical skills evaluation with evidence citations."""
         start_time = time.time()
-        
+
         cand_skill_map = {s.get("skill_name", "").lower(): s for s in candidate_skills}
         cand_skill_names = set(cand_skill_map.keys())
         full_text_lower = resume_text.lower()
         pages = page_texts if page_texts else {"1": resume_text}
 
-        evaluations: List[Dict[str, Any]] = []
+        evaluations: list[dict[str, Any]] = []
         earned_points = 0.0
         total_possible_points = 0.0
 
@@ -68,7 +70,7 @@ class TechnicalSkillsAgent(BaseAgent):
             if req_lower in cand_skill_names:
                 skill_obj = cand_skill_map[req_lower]
                 source_page = skill_obj.get("source_page", 1)
-                snippet = skill_obj.get("snippet", f"Explicitly listed under candidate skills.")
+                snippet = skill_obj.get("snippet", "Explicitly listed under candidate skills.")
 
                 # Check if demonstrated professionally or in project
                 prof_match = self._find_in_collection(req_lower, candidate_experience)
@@ -118,16 +120,18 @@ class TechnicalSkillsAgent(BaseAgent):
                     score_contribution = 0.0
 
             earned_points += score_contribution
-            evaluations.append({
-                "skill": req_skill,
-                "category": category,
-                "evidence_classification": evidence_class,
-                "source_page": source_page,
-                "snippet": snippet,
-                "confidence": confidence,
-                "weight": weight,
-                "score_contribution": round(score_contribution, 2)
-            })
+            evaluations.append(
+                {
+                    "skill": req_skill,
+                    "category": category,
+                    "evidence_classification": evidence_class,
+                    "source_page": source_page,
+                    "snippet": snippet,
+                    "confidence": confidence,
+                    "weight": weight,
+                    "score_contribution": round(score_contribution, 2),
+                }
+            )
 
         # Calculate normalized score (0 to 100)
         norm_score = round((earned_points / total_possible_points) * 100.0, 1) if total_possible_points > 0 else 75.0
@@ -143,25 +147,30 @@ class TechnicalSkillsAgent(BaseAgent):
             tokens_used=0,
             model_used="evidence-classification-engine",
             input_summary=f"Evaluated {len(job_requirements)} requirements against candidate profile.",
-            output_summary=f"Technical score: {norm_score}/100. Verified {sum(1 for e in evaluations if e['evidence_classification'] != 'not_found')} skills."
+            output_summary=f"Technical score: {norm_score}/100. Verified {sum(1 for e in evaluations if e['evidence_classification'] != 'not_found')} skills.",
         )
 
         return {
             "technical_score": norm_score,
             "evaluations": evaluations,
-            "matched_count": sum(1 for e in evaluations if e["evidence_classification"] in ["demonstrated_professionally", "demonstrated_in_project", "explicitly_mentioned"]),
+            "matched_count": sum(
+                1
+                for e in evaluations
+                if e["evidence_classification"]
+                in ["demonstrated_professionally", "demonstrated_in_project", "explicitly_mentioned"]
+            ),
             "missing_count": sum(1 for e in evaluations if e["evidence_classification"] == "not_found"),
-            "inferred_count": sum(1 for e in evaluations if e["evidence_classification"] == "weakly_inferred")
+            "inferred_count": sum(1 for e in evaluations if e["evidence_classification"] == "weakly_inferred"),
         }
 
-    def _find_in_collection(self, skill_lower: str, items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _find_in_collection(self, skill_lower: str, items: list[dict[str, Any]]) -> dict[str, Any] | None:
         for item in items:
             combined = json.dumps(item).lower()
             if skill_lower in combined:
                 return item
         return None
 
-    def _find_text_snippet(self, term: str, pages: Dict[str, str]) -> (int, str):
+    def _find_text_snippet(self, term: str, pages: dict[str, str]) -> (int, str):
         for p_num, text in pages.items():
             idx = text.lower().find(term)
             if idx != -1:
@@ -172,7 +181,7 @@ class TechnicalSkillsAgent(BaseAgent):
                 return page_int, snippet
         return 1, f"Term '{term}' located in resume document."
 
-    def _check_inferred_competency(self, target_skill: str, candidate_skills: set) -> Optional[str]:
+    def _check_inferred_competency(self, target_skill: str, candidate_skills: set) -> str | None:
         # Semantic/family relationships
         families = {
             "fastapi": ["python", "flask", "django", "pydantic", "starlette"],
@@ -181,7 +190,7 @@ class TechnicalSkillsAgent(BaseAgent):
             "postgresql": ["sql", "mysql", "databases", "relational database", "sqlite"],
             "aws": ["cloud", "gcp", "azure", "ec2", "s3"],
             "pytorch": ["deep learning", "machine learning", "tensorflow", "keras", "python"],
-            "sentence-transformers": ["nlp", "embeddings", "transformers", "pytorch", "huggingface"]
+            "sentence-transformers": ["nlp", "embeddings", "transformers", "pytorch", "huggingface"],
         }
         for parent, relations in families.items():
             if target_skill == parent:

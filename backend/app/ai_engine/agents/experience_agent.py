@@ -1,8 +1,10 @@
-import time
-import re
 import logging
-from typing import Dict, Any, List, Optional
+import re
+import time
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai_engine.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -19,23 +21,23 @@ class ExperienceEvaluationAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             agent_name="ExperienceEvaluationAgent",
-            description="Evaluates professional accomplishments, project implementation depth, and domain relevance without penalizing freshers."
+            description="Evaluates professional accomplishments, project implementation depth, and domain relevance without penalizing freshers.",
         )
 
     def execute(
         self,
         candidate_experience_years: float,
-        experience_items: List[Dict[str, Any]],
-        projects: List[Dict[str, Any]],
+        experience_items: list[dict[str, Any]],
+        projects: list[dict[str, Any]],
         required_experience_years: float,
         job_title: str,
         job_description: str,
-        db: Optional[Session] = None,
-        candidate_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        db: Session | None = None,
+        candidate_id: str | None = None,
+    ) -> dict[str, Any]:
         """Assess career trajectory, project complexity, and domain relevance."""
         start_time = time.time()
-        
+
         is_fresher = candidate_experience_years <= 1.0 and len(experience_items) <= 1
         has_internships = any("intern" in (e.get("role", "") + e.get("title", "")).lower() for e in experience_items)
         has_substantial_projects = len(projects) >= 2 or any(len(p.get("description", "")) > 100 for p in projects)
@@ -63,19 +65,36 @@ class ExperienceEvaluationAgent(BaseAgent):
             project_points += 15.0
         if len(projects) >= 3:
             project_points += 15.0
-        
+
         # Check for technical depth keywords in projects
         combined_projects = " ".join(p.get("description", "") + " " + p.get("title", "") for p in projects).lower()
-        impact_keywords = ["deployed", "production", "optimized", "architected", "api", "database", "scaled", "docker", "pipeline", "ml", "ai"]
+        impact_keywords = [
+            "deployed",
+            "production",
+            "optimized",
+            "architected",
+            "api",
+            "database",
+            "scaled",
+            "docker",
+            "pipeline",
+            "ml",
+            "ai",
+        ]
         hits = sum(1 for kw in impact_keywords if kw in combined_projects)
         project_points += min(20.0, hits * 3.5)
         project_depth_score = min(100.0, round(project_points, 1))
 
         # 3. Domain relevance
         job_keywords = set(re.findall(r"\b[a-z]{4,}\b", job_title.lower() + " " + job_description[:500].lower()))
-        cand_history_words = set(re.findall(r"\b[a-z]{4,}\b", combined_projects + " " + " ".join(e.get("role", "") for e in experience_items).lower()))
+        cand_history_words = set(
+            re.findall(
+                r"\b[a-z]{4,}\b",
+                combined_projects + " " + " ".join(e.get("role", "") for e in experience_items).lower(),
+            )
+        )
         common_domain_terms = job_keywords.intersection(cand_history_words)
-        
+
         if len(common_domain_terms) > 8:
             domain_relevance = "High"
         elif len(common_domain_terms) > 3:
@@ -122,7 +141,7 @@ class ExperienceEvaluationAgent(BaseAgent):
             tokens_used=0,
             model_used="career-trajectory-evaluator",
             input_summary=f"Evaluated {candidate_experience_years} yrs against {required_experience_years} yrs required.",
-            output_summary=f"Experience score: {final_exp_score}/100. Level: {seniority_level}."
+            output_summary=f"Experience score: {final_exp_score}/100. Level: {seniority_level}.",
         )
 
         return {
@@ -134,7 +153,8 @@ class ExperienceEvaluationAgent(BaseAgent):
             "is_fresher": is_fresher,
             "fresher_friendly_verdict": (
                 "Demonstrated project depth compensates for lack of formal enterprise tenure."
-                if (is_fresher and project_depth_score >= 65.0) else "Standard tenure evaluation applied."
+                if (is_fresher and project_depth_score >= 65.0)
+                else "Standard tenure evaluation applied."
             ),
-            "key_accomplishments": accomplishments
+            "key_accomplishments": accomplishments,
         }

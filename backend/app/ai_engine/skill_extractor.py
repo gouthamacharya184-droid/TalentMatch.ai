@@ -1,5 +1,6 @@
 import re
-from typing import List, Dict, Any
+from typing import Any
+
 from app.ai_engine.skill_dictionary import FLATTENED_SKILLS, SKILL_SYNONYMS
 
 
@@ -11,13 +12,9 @@ class SkillExtractor:
 
     def __init__(self):
         # Precompile exact skill regexes sorted by length descending (longest first)
-        self.all_skills = sorted(
-            FLATTENED_SKILLS.keys(),
-            key=lambda x: len(x),
-            reverse=True
-        )
+        self.all_skills = sorted(FLATTENED_SKILLS.keys(), key=lambda x: len(x), reverse=True)
 
-    def extract_skills(self, text: str) -> List[Dict[str, Any]]:
+    def extract_skills(self, text: str) -> list[dict[str, Any]]:
         """
         Extract unique skills from text with confidence, category, and evidence snippet.
         """
@@ -25,7 +22,7 @@ class SkillExtractor:
             return []
 
         text_lower = text.lower()
-        extracted: Dict[str, Dict[str, Any]] = {}
+        extracted: dict[str, dict[str, Any]] = {}
 
         # 1. Check direct skill names
         for skill_key in self.all_skills:
@@ -40,7 +37,7 @@ class SkillExtractor:
             if matches:
                 canonical_name = FLATTENED_SKILLS[skill_key]["name"]
                 category = FLATTENED_SKILLS[skill_key]["category"]
-                
+
                 # Grab a short snippet of context around first occurrence
                 start = max(0, matches[0].start() - 30)
                 end = min(len(text), matches[0].end() + 30)
@@ -55,7 +52,7 @@ class SkillExtractor:
                     "confidence": round(confidence, 2),
                     "frequency": count,
                     "evidence": f"...{evidence}...",
-                    "source": "exact"
+                    "source": "exact",
                 }
 
         # 2. Check synonyms & abbreviations
@@ -69,7 +66,7 @@ class SkillExtractor:
             if matches:
                 canonical_lower = canonical.lower()
                 category = FLATTENED_SKILLS.get(canonical_lower, {}).get("category", "technical")
-                
+
                 start = max(0, matches[0].start() - 30)
                 end = min(len(text), matches[0].end() + 30)
                 evidence = text[start:end].replace("\n", " ").strip()
@@ -80,12 +77,12 @@ class SkillExtractor:
                     "confidence": 0.85,
                     "frequency": len(matches),
                     "evidence": f"...{evidence} (synonym: {synonym})...",
-                    "source": "synonym"
+                    "source": "synonym",
                 }
 
         return list(extracted.values())
 
-    def get_skill_names(self, text: str) -> List[str]:
+    def get_skill_names(self, text: str) -> list[str]:
         """Convenience method returning just a list of extracted canonical skill names."""
         extracted = self.extract_skills(text)
         return [item["skill_name"] for item in extracted]

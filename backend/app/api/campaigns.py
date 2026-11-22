@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -6,9 +5,9 @@ from app.api.deps import get_db, get_optional_current_user
 from app.models.all_models import Campaign, User, generate_uuid, utc_now
 from app.schemas.all_schemas import (
     CampaignCreate,
-    CampaignUpdate,
     CampaignResponse,
-    PaginatedResponse
+    CampaignUpdate,
+    PaginatedResponse,
 )
 
 router = APIRouter(prefix="/campaigns", tags=["Recruitment Campaigns"])
@@ -18,9 +17,9 @@ router = APIRouter(prefix="/campaigns", tags=["Recruitment Campaigns"])
 def get_campaigns(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = None,
-    search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    status: str | None = None,
+    search: str | None = None,
+    db: Session = Depends(get_db),
 ):
     query = db.query(Campaign)
     if status:
@@ -31,19 +30,14 @@ def get_campaigns(
     total = query.count()
     campaigns = query.order_by(Campaign.created_at.desc()).offset(skip).limit(limit).all()
 
-    return {
-        "items": campaigns,
-        "total": total,
-        "skip": skip,
-        "limit": limit
-    }
+    return {"items": campaigns, "total": total, "skip": skip, "limit": limit}
 
 
 @router.post("", response_model=CampaignResponse)
 def create_campaign(
     camp_in: CampaignCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     user_id = current_user.id if current_user else None
     campaign = Campaign(
@@ -56,7 +50,7 @@ def create_campaign(
         status=camp_in.status,
         target_date=camp_in.target_date,
         settings=camp_in.settings,
-        created_at=utc_now()
+        created_at=utc_now(),
     )
     db.add(campaign)
     db.commit()
@@ -73,16 +67,14 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/{campaign_id}", response_model=CampaignResponse)
-def update_campaign(
-    campaign_id: str,
-    camp_in: CampaignUpdate,
-    db: Session = Depends(get_db)
-):
+def update_campaign(campaign_id: str, camp_in: CampaignUpdate, db: Session = Depends(get_db)):
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    update_data = camp_in.model_dump(exclude_unset=True) if hasattr(camp_in, "model_dump") else camp_in.dict(exclude_unset=True)
+    update_data = (
+        camp_in.model_dump(exclude_unset=True) if hasattr(camp_in, "model_dump") else camp_in.dict(exclude_unset=True)
+    )
     for field, val in update_data.items():
         setattr(campaign, field, val)
 

@@ -1,8 +1,8 @@
 import os
-from typing import Dict, Any
+from typing import Any
 
 
-def extract_text_from_docx(file_path: str) -> Dict[str, Any]:
+def extract_text_from_docx(file_path: str) -> dict[str, Any]:
     """
     Extract text from DOCX documents using python-docx.
     Includes magic byte validation, paragraphs, tables, and headers.
@@ -21,6 +21,7 @@ def extract_text_from_docx(file_path: str) -> Dict[str, Any]:
 
     try:
         import docx
+
         doc = docx.Document(file_path)
         full_text = []
 
@@ -39,21 +40,8 @@ def extract_text_from_docx(file_path: str) -> Dict[str, Any]:
 
         extracted = "\n".join(full_text).strip()
         if not extracted:
-            return {
-                "text": "",
-                "paragraph_count": len(doc.paragraphs),
-                "error": "Document contains no readable text."
-            }
+            return {"text": "", "paragraph_count": len(doc.paragraphs), "error": "Document contains no readable text."}
 
-        return {
-            "text": extracted,
-            "paragraph_count": len(doc.paragraphs),
-            "extractor": "python-docx",
-            "error": None
-        }
+        return {"text": extracted, "paragraph_count": len(doc.paragraphs), "extractor": "python-docx", "error": None}
     except Exception as e:
-        return {
-            "text": "",
-            "paragraph_count": 0,
-            "error": f"Failed to parse DOCX: {str(e)}"
-        }
+        return {"text": "", "paragraph_count": 0, "error": f"Failed to parse DOCX: {e!s}"}

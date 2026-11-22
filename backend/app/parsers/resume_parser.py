@@ -1,6 +1,7 @@
 import re
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
+
 from app.ai_engine.skill_extractor import SkillExtractor
 
 
@@ -13,7 +14,7 @@ class ResumeParser:
     def __init__(self):
         self.skill_extractor = SkillExtractor()
 
-    def parse(self, text: str, filename: Optional[str] = None) -> Dict[str, Any]:
+    def parse(self, text: str, filename: str | None = None) -> dict[str, Any]:
         """Parse raw resume text into structured candidate profile."""
         if not text:
             return self._empty_profile(filename)
@@ -58,10 +59,10 @@ class ResumeParser:
             "certifications": certifications,
             "skills": skills_extracted,
             "parsing_confidence": parsing_confidence,
-            "extracted_at": datetime.now(timezone.utc).isoformat(),
+            "extracted_at": datetime.now(UTC).isoformat(),
         }
 
-    def _empty_profile(self, filename: Optional[str]) -> Dict[str, Any]:
+    def _empty_profile(self, filename: str | None) -> dict[str, Any]:
         fallback_name = "Candidate"
         if filename:
             cleaned = re.sub(r"\.(pdf|docx|doc|txt)$", "", filename, flags=re.IGNORECASE)
@@ -78,15 +79,15 @@ class ResumeParser:
             "certifications": [],
             "skills": [],
             "parsing_confidence": 0.0,
-            "extracted_at": datetime.now(timezone.utc).isoformat(),
+            "extracted_at": datetime.now(UTC).isoformat(),
         }
 
-    def _extract_email(self, text: str) -> Optional[str]:
+    def _extract_email(self, text: str) -> str | None:
         email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b"
         match = re.search(email_pattern, text)
         return match.group(0).lower() if match else None
 
-    def _extract_phone(self, text: str) -> Optional[str]:
+    def _extract_phone(self, text: str) -> str | None:
         # Matches formats: +1-555-555-5555, (555) 555-5555, +91 9876543210, 555.555.5555, +1 234 567 8900
         phone_pattern = r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
         matches = re.findall(phone_pattern, text)
@@ -96,19 +97,39 @@ class ResumeParser:
                 return m.strip()
         return None
 
-    def _extract_name(self, lines: List[str], filename: Optional[str]) -> str:
+    def _extract_name(self, lines: list[str], filename: str | None) -> str:
         # Check for explicit "Name: <Candidate Name>"
         for line in lines[:10]:
-            name_prefix = re.search(r"^(?:name|candidate name|full name)\s*[:\-]\s*([A-Z][a-zA-Z.'-]+(?:\s+[A-Z][a-zA-Z.'-]+){1,3})", line, flags=re.IGNORECASE)
+            name_prefix = re.search(
+                r"^(?:name|candidate name|full name)\s*[:\-]\s*([A-Z][a-zA-Z.'-]+(?:\s+[A-Z][a-zA-Z.'-]+){1,3})",
+                line,
+                flags=re.IGNORECASE,
+            )
             if name_prefix:
                 return name_prefix.group(1).strip()
 
         # Check first 6 lines for a clean candidate name
         ignored_keywords = [
-            "resume", "curriculum vitae", "cv", "page", "contact",
-            "email", "phone", "address", "portfolio", "github", "linkedin",
-            "summary", "profile", "objective", "experience", "education",
-            "skills", "projects", "certifications", "technologies"
+            "resume",
+            "curriculum vitae",
+            "cv",
+            "page",
+            "contact",
+            "email",
+            "phone",
+            "address",
+            "portfolio",
+            "github",
+            "linkedin",
+            "summary",
+            "profile",
+            "objective",
+            "experience",
+            "education",
+            "skills",
+            "projects",
+            "certifications",
+            "technologies",
         ]
 
         for line in lines[:6]:
@@ -137,21 +158,35 @@ class ResumeParser:
         loc_pattern = r"\b([A-Z][a-zA-Z]+(?:[\s-][A-Z][a-zA-Z]+)?),\s*([A-Z]{2}|[A-Z][a-zA-Z]+)\b"
         matches = re.findall(loc_pattern, text[:1500])
         for city, state_or_country in matches:
-            if city.lower() not in ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "experience", "education", "skills", "projects"]:
+            if city.lower() not in [
+                "january",
+                "february",
+                "march",
+                "april",
+                "may",
+                "june",
+                "july",
+                "august",
+                "september",
+                "october",
+                "november",
+                "december",
+                "experience",
+                "education",
+                "skills",
+                "projects",
+            ]:
                 return f"{city}, {state_or_country}"
         return "Remote / Flexible"
 
-    def _extract_education(self, text: str) -> List[Dict[str, Any]]:
+    def _extract_education(self, text: str) -> list[dict[str, Any]]:
         education_records = []
         edu_keywords = [
             r"\b(Ph\.?D\.?|Doctor of Philosophy)\b",
             r"\b(Master(?:'s)? of [A-Za-z\s]+|M\.?S\.?|M\.?Tech\.?|M\.?B\.?A\.?|M\.?A\.?)\b",
             r"\b(Bachelor(?:'s)? of [A-Za-z\s]+|B\.?S\.?|B\.?Tech\.?|B\.?E\.?|B\.?A\.?|B\.?Sc\.?)\b",
-            r"\b(Associate(?:'s)? Degree|Diploma)\b"
+            r"\b(Associate(?:'s)? Degree|Diploma)\b",
         ]
-
-        text_lower = text.lower()
-        years = re.findall(r"\b(19\d{2}|20\d{2})\b", text)
 
         for pat in edu_keywords:
             matches = re.finditer(pat, text, flags=re.IGNORECASE)
@@ -168,15 +203,13 @@ class ResumeParser:
 
                 # Find institution keyword
                 institution = "University / College"
-                inst_match = re.search(r"([A-Z][a-zA-Z\s]+(?:University|College|Institute|Polytechnic|Academy))", snippet)
+                inst_match = re.search(
+                    r"([A-Z][a-zA-Z\s]+(?:University|College|Institute|Polytechnic|Academy))", snippet
+                )
                 if inst_match:
                     institution = inst_match.group(0).strip()
 
-                education_records.append({
-                    "degree": degree,
-                    "institution": institution,
-                    "year": grad_year
-                })
+                education_records.append({"degree": degree, "institution": institution, "year": grad_year})
 
         # Deduplicate
         unique_records = []
@@ -189,19 +222,40 @@ class ResumeParser:
 
         return unique_records
 
-    def _extract_experience(self, text: str) -> (List[Dict[str, Any]], float):
+    def _extract_experience(self, text: str) -> (list[dict[str, Any]], float):
         experience_items = []
 
         # 1. Search for explicit mentions like "5+ years of experience", "4 years experience"
-        exp_mention = re.search(r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant\s*)?experience", text, flags=re.IGNORECASE)
+        exp_mention = re.search(
+            r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant\s*)?experience", text, flags=re.IGNORECASE
+        )
         explicit_years = float(exp_mention.group(1)) if exp_mention else 0.0
 
         # Month lookup map
         month_map = {
-            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
-            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
-            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+            "jan": 1,
+            "feb": 2,
+            "mar": 3,
+            "apr": 4,
+            "may": 5,
+            "jun": 6,
+            "jul": 7,
+            "aug": 8,
+            "sep": 9,
+            "oct": 10,
+            "nov": 11,
+            "dec": 12,
+            "january": 1,
+            "february": 2,
+            "march": 3,
+            "april": 4,
+            "june": 6,
+            "july": 7,
+            "august": 8,
+            "september": 9,
+            "october": 10,
+            "november": 11,
+            "december": 12,
         }
 
         # 2. Extract date ranges: e.g. "Jan 2019 - Present", "05/2020 - 08/2023", "2018 - 2022"
@@ -249,14 +303,12 @@ class ResumeParser:
 
                 # Look for surrounding role title context
                 start_context = max(0, m.start() - 80)
-                context = text[start_context:m.start()].strip().split("\n")[-1]
+                context = text[start_context : m.start()].strip().split("\n")[-1]
                 title = context.strip() if 3 < len(context.strip()) < 50 else "Professional Role"
 
-                experience_items.append({
-                    "title": title,
-                    "duration": f"{m.group(2)} - {m.group(4)}",
-                    "years": round(duration, 1)
-                })
+                experience_items.append(
+                    {"title": title, "duration": f"{m.group(2)} - {m.group(4)}", "years": round(duration, 1)}
+                )
 
         # Merge overlapping date intervals to prevent double-counting parallel roles
         if intervals:
@@ -275,21 +327,31 @@ class ResumeParser:
         total_years = max(explicit_years, calculated_years)
         return experience_items, round(min(total_years, 35.0), 1)
 
-    def _extract_projects(self, text: str) -> List[Dict[str, str]]:
+    def _extract_projects(self, text: str) -> list[dict[str, str]]:
         projects = []
-        proj_section = re.search(r"(?:projects|key projects|academic projects)\s*[:\n](.*?)(?=(?:experience|education|skills|certifications|awards|\Z))", text, flags=re.IGNORECASE | re.DOTALL)
+        proj_section = re.search(
+            r"(?:projects|key projects|academic projects)\s*[:\n](.*?)(?=(?:experience|education|skills|certifications|awards|\Z))",
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
         if proj_section:
             snippet = proj_section.group(1).strip()
             # Split into project bullets or blocks
-            blocks = [b.strip() for b in re.split(r"\n(?=[•\-\*]|\d+\.|\b[A-Z][A-Za-z0-9\s]{3,30}:)", snippet) if b.strip()]
+            blocks = [
+                b.strip() for b in re.split(r"\n(?=[•\-\*]|\d+\.|\b[A-Z][A-Za-z0-9\s]{3,30}:)", snippet) if b.strip()
+            ]
             for b in blocks[:5]:
                 first_line = b.splitlines()[0][:60]
                 projects.append({"name": first_line, "description": b[:250]})
         return projects
 
-    def _extract_certifications(self, text: str) -> List[str]:
+    def _extract_certifications(self, text: str) -> list[str]:
         certifications = []
-        cert_matches = re.findall(r"(?:AWS Certified|Azure Certified|GCP Certified|PMP|Scrum Master|CKA|CKAD|CISSP|CompTIA\s+[A-Za-z0-9+]+|TensorFlow Developer|Google Cloud Certified)", text, flags=re.IGNORECASE)
+        cert_matches = re.findall(
+            r"(?:AWS Certified|Azure Certified|GCP Certified|PMP|Scrum Master|CKA|CKAD|CISSP|CompTIA\s+[A-Za-z0-9+]+|TensorFlow Developer|Google Cloud Certified)",
+            text,
+            flags=re.IGNORECASE,
+        )
         for c in cert_matches:
             if c not in certifications:
                 certifications.append(c.strip())

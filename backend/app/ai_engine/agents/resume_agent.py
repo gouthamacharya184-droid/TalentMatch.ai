@@ -1,8 +1,10 @@
-import time
 import hashlib
 import logging
-from typing import Dict, Any, List, Optional
+import time
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai_engine.agents.base_agent import BaseAgent
 from app.ai_engine.skill_extractor import SkillExtractor
 from app.parsers.resume_parser import ResumeParser
@@ -21,7 +23,7 @@ class ResumeIntelligenceAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             agent_name="ResumeIntelligenceAgent",
-            description="Deep multi-page document parsing, structural extraction, page-level citation mapping, and profile completeness validation."
+            description="Deep multi-page document parsing, structural extraction, page-level citation mapping, and profile completeness validation.",
         )
         self.base_parser = ResumeParser()
         self.skill_extractor = SkillExtractor()
@@ -33,13 +35,13 @@ class ResumeIntelligenceAgent(BaseAgent):
     def execute(
         self,
         raw_text: str,
-        page_texts: Optional[Dict[str, str]] = None,
-        filename: Optional[str] = None,
+        page_texts: dict[str, str] | None = None,
+        filename: str | None = None,
         file_size: int = 0,
-        content_hash: Optional[str] = None,
-        db: Optional[Session] = None,
-        candidate_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        content_hash: str | None = None,
+        db: Session | None = None,
+        candidate_id: str | None = None,
+    ) -> dict[str, Any]:
         """Execute resume intelligence parsing and citation tracking."""
         start_time = time.time()
         tokens_est = len(raw_text.split()) * 2
@@ -74,7 +76,7 @@ class ResumeIntelligenceAgent(BaseAgent):
             "parsing_confidence": confidence_score,
             "completeness_status": completeness_status,
             "raw_text": raw_text,
-            "page_texts": page_texts or {"1": raw_text}
+            "page_texts": page_texts or {"1": raw_text},
         }
 
         duration_ms = int((time.time() - start_time) * 1000)
@@ -88,17 +90,14 @@ class ResumeIntelligenceAgent(BaseAgent):
             tokens_used=tokens_est,
             model_used="hybrid-regex-nlp-parser",
             input_summary=f"Parsed {filename or 'Resume'} ({len(raw_text)} chars, {len(page_texts or {})} pages)",
-            output_summary=f"Extracted {len(enriched_skills)} skills, {len(enriched_projects)} projects, {profile.get('total_experience_years', 0)} years exp."
+            output_summary=f"Extracted {len(enriched_skills)} skills, {len(enriched_projects)} projects, {profile.get('total_experience_years', 0)} years exp.",
         )
 
         return result
 
     def _map_skills_to_pages(
-        self,
-        extracted_skills: List[Dict[str, Any]],
-        page_texts: Optional[Dict[str, str]],
-        raw_text: str
-    ) -> List[Dict[str, Any]]:
+        self, extracted_skills: list[dict[str, Any]], page_texts: dict[str, str] | None, raw_text: str
+    ) -> list[dict[str, Any]]:
         """Map each extracted skill to its primary source page and snippet citation."""
         enriched = []
         pages = page_texts if page_texts else {"1": raw_text}
@@ -106,7 +105,7 @@ class ResumeIntelligenceAgent(BaseAgent):
         for s in extracted_skills:
             skill_name = s.get("skill_name", "")
             s_lower = skill_name.lower()
-            
+
             found_page = 1
             snippet = f"Skill '{skill_name}' identified in resume competencies."
             evidence_type = "explicit"
@@ -120,32 +119,34 @@ class ResumeIntelligenceAgent(BaseAgent):
                     start_idx = max(0, idx - 40)
                     end_idx = min(len(p_text), idx + len(skill_name) + 60)
                     snippet = p_text[start_idx:end_idx].replace("\n", " ").strip()
-                    
+
                     # Check context: project or professional
-                    surrounding = p_lower[max(0, idx - 100):min(len(p_lower), idx + 100)]
+                    surrounding = p_lower[max(0, idx - 100) : min(len(p_lower), idx + 100)]
                     if any(w in surrounding for w in ["project", "github", "developed", "built", "implemented"]):
                         evidence_type = "project"
-                    elif any(w in surrounding for w in ["senior", "engineer", "lead", "developer", "worked at", "company", "client"]):
+                    elif any(
+                        w in surrounding
+                        for w in ["senior", "engineer", "lead", "developer", "worked at", "company", "client"]
+                    ):
                         evidence_type = "professional"
                     break
 
-            enriched.append({
-                "skill_name": skill_name,
-                "category": s.get("category", "technical"),
-                "proficiency_level": s.get("proficiency_level", "intermediate"),
-                "source_page": found_page,
-                "snippet": snippet,
-                "evidence_type": evidence_type
-            })
+            enriched.append(
+                {
+                    "skill_name": skill_name,
+                    "category": s.get("category", "technical"),
+                    "proficiency_level": s.get("proficiency_level", "intermediate"),
+                    "source_page": found_page,
+                    "snippet": snippet,
+                    "evidence_type": evidence_type,
+                }
+            )
 
         return enriched
 
     def _extract_projects_with_pages(
-        self,
-        projects: List[Dict[str, Any]],
-        page_texts: Optional[Dict[str, str]],
-        raw_text: str
-    ) -> List[Dict[str, Any]]:
+        self, projects: list[dict[str, Any]], page_texts: dict[str, str] | None, raw_text: str
+    ) -> list[dict[str, Any]]:
         """Ensure projects contain source page references."""
         pages = page_texts if page_texts else {"1": raw_text}
         results = []
@@ -157,7 +158,7 @@ class ResumeIntelligenceAgent(BaseAgent):
                 if title.lower() in p_text.lower():
                     found_page = int(page_num_str) if page_num_str.isdigit() else 1
                     break
-            
+
             p["source_page"] = found_page
             results.append(p)
 
@@ -166,13 +167,15 @@ class ResumeIntelligenceAgent(BaseAgent):
             lines = raw_text.splitlines()
             in_proj_section = False
             curr_proj = None
-            
+
             for line in lines:
                 l_lower = line.strip().lower()
                 if any(h in l_lower for h in ["projects", "personal projects", "academic projects", "key projects"]):
                     in_proj_section = True
                     continue
-                if in_proj_section and any(h in l_lower for h in ["experience", "education", "skills", "certifications", "interests"]):
+                if in_proj_section and any(
+                    h in l_lower for h in ["experience", "education", "skills", "certifications", "interests"]
+                ):
                     in_proj_section = False
                     if curr_proj:
                         results.append(curr_proj)
@@ -180,12 +183,7 @@ class ResumeIntelligenceAgent(BaseAgent):
                 if in_proj_section and line.strip() and len(line.strip()) < 80 and not line.strip().startswith("-"):
                     if curr_proj:
                         results.append(curr_proj)
-                    curr_proj = {
-                        "title": line.strip(),
-                        "description": "",
-                        "technologies": [],
-                        "source_page": 1
-                    }
+                    curr_proj = {"title": line.strip(), "description": "", "technologies": [], "source_page": 1}
                 elif in_proj_section and curr_proj and line.strip():
                     curr_proj["description"] += " " + line.strip()
 
@@ -195,10 +193,8 @@ class ResumeIntelligenceAgent(BaseAgent):
         return results[:5]
 
     def _map_experience_to_pages(
-        self,
-        experience: List[Dict[str, Any]],
-        page_texts: Optional[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
+        self, experience: list[dict[str, Any]], page_texts: dict[str, str] | None
+    ) -> list[dict[str, Any]]:
         if not page_texts:
             return experience
 
@@ -212,7 +208,7 @@ class ResumeIntelligenceAgent(BaseAgent):
                     break
         return experience
 
-    def _evaluate_completeness(self, profile: Dict[str, Any]) -> (str, float):
+    def _evaluate_completeness(self, profile: dict[str, Any]) -> (str, float):
         score = 0.0
         if profile.get("name") and profile.get("name") != "Candidate":
             score += 0.20
@@ -239,7 +235,7 @@ class ResumeIntelligenceAgent(BaseAgent):
 
         return status, conf
 
-    def _empty_response(self, filename: Optional[str], content_hash: Optional[str]) -> Dict[str, Any]:
+    def _empty_response(self, filename: str | None, content_hash: str | None) -> dict[str, Any]:
         return {
             "name": "Candidate",
             "email": None,
@@ -256,5 +252,5 @@ class ResumeIntelligenceAgent(BaseAgent):
             "parsing_confidence": 0.0,
             "completeness_status": "unreadable_empty",
             "raw_text": "",
-            "page_texts": {"1": ""}
+            "page_texts": {"1": ""},
         }

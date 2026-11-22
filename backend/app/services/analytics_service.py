@@ -1,20 +1,22 @@
-from datetime import datetime, timezone
-from typing import Dict, Any
-from sqlalchemy.orm import Session
+from datetime import UTC, datetime
+from typing import Any
+
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.models.all_models import (
-    Job,
+    ActivityLog,
     Candidate,
-    Resume,
-    MatchingAnalysis,
-    Shortlist,
     CandidateSkill,
-    ActivityLog
+    Job,
+    MatchingAnalysis,
+    Resume,
+    Shortlist,
 )
 
 
 class AnalyticsService:
-    def get_dashboard_stats(self, db: Session) -> Dict[str, Any]:
+    def get_dashboard_stats(self, db: Session) -> dict[str, Any]:
         total_jobs = db.query(Job).count()
         total_resumes = db.query(Resume).count()
         total_candidates = db.query(Candidate).count()
@@ -62,10 +64,10 @@ class AnalyticsService:
             "top_candidates": top_candidates,
             "score_distribution": score_dist,
             "skills_availability": skills_avail,
-            "recent_activity": activity
+            "recent_activity": activity,
         }
 
-    def get_job_report_data(self, db: Session, job_id: str) -> Dict[str, Any]:
+    def get_job_report_data(self, db: Session, job_id: str) -> dict[str, Any]:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise ValueError(f"Job not found: {job_id}")
@@ -77,8 +79,4 @@ class AnalyticsService:
             .all()
         )
 
-        return {
-            "job": job,
-            "analyses": analyses,
-            "generated_at": datetime.now(timezone.utc).isoformat()
-        }
+        return {"job": job, "analyses": analyses, "generated_at": datetime.now(UTC).isoformat()}
