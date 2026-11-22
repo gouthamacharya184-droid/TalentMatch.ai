@@ -83,6 +83,7 @@ export interface CandidateSkill {
 export interface Resume {
   id: string;
   candidate_id?: string | null;
+  candidate_name?: string | null;
   original_filename: string;
   filename?: string;
   stored_filename?: string;

@@ -54,23 +54,15 @@ export const ResumeUploadPage: React.FC = () => {
     const completedCandidateIds = completedItems
       .map((i) => i.resumeData!.candidate_id!)
       .filter(Boolean);
-    const uploadedCandidates: Candidate[] = completedItems.map((i) => ({
+    const uploadedMeta = completedItems.map((i) => ({
       id: i.resumeData!.candidate_id!,
-      name: i.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
-      email: `${i.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g, '')}@applicant.io`,
-      phone: '',
-      location: 'Uploaded Resume',
-      total_experience_years: 3.5,
-      education: null,
-      extracted_profile: null,
-      status: 'new' as const,
-      skills: [],
-      created_at: new Date().toISOString(),
+      name: i.resumeData!.candidate_name || i.name.replace(/\.[^/.]+$/, ''),
+      filename: i.name,
     }));
     navigate('/matching', {
       state: {
         candidateIds: completedCandidateIds,
-        uploadedCandidates,
+        uploadedMeta,
         fromUpload: true,
         count: completedCount,
       },

@@ -148,14 +148,18 @@ def test_auth_me_with_valid_token():
 
 
 def test_api_health_database_and_user_count():
-    """Verify /api/health reports connected database status and seeded user count."""
+    """Verify /api/health reports connected database status, engine, storage, and counts."""
     res = client.get("/api/health")
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "ok"
     assert data["database"] == "connected"
+    assert data["db_engine"] in ["sqlite", "postgresql"]
+    assert data["storage"] in ["blob", "tmp (not persistent)"]
     assert isinstance(data.get("users"), int)
     assert data["users"] >= 2
+    assert isinstance(data.get("candidates"), int)
+    assert isinstance(data.get("resumes"), int)
 
 
 def test_recruiter_demo_login_success():
@@ -222,8 +226,8 @@ def test_resume_upload_serverless_storage_fallback(monkeypatch):
     assert data[0]["file_size"] > 0
 
 
-def test_cold_start_seeding_includes_candidate_pool(monkeypatch):
-    """Verify that serverless cold starts (fast_mode=True) populate the 12 candidate pool."""
+def test_cold_start_seeding_and_candidate_seeding():
+    """Verify that serverless cold starts (fast_mode=True) only seed demo users & standard jobs, while full seed adds candidate pool."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.database.session import Base
@@ -236,12 +240,13 @@ def test_cold_start_seeding_includes_candidate_pool(monkeypatch):
     test_db = TestSession()
 
     try:
-        # Run seed in serverless fast mode
+        # 1. Run seed in serverless fast mode (cold start)
         seed_database(test_db, fast_mode=True)
 
         assert test_db.query(User).count() >= 2
         assert test_db.query(Job).count() >= 6
-        assert test_db.query(Candidate).count() >= 12
+        # Fast mode does not seed fake candidates: honest empty pool until user action
+        assert test_db.query(Candidate).count() == 0
 
         # Verify priority requisitions exist
         job_titles = [j.title for j in test_db.query(Job).all()]
@@ -249,17 +254,56 @@ def test_cold_start_seeding_includes_candidate_pool(monkeypatch):
         assert "ML Engineer" in job_titles
         assert "Software Engineer" in job_titles
 
-        # Verify candidate pool has realistic records
+        # 2. Run full seed mode (or explicit sample loading)
+        seed_database(test_db, fast_mode=False)
+        assert test_db.query(Candidate).count() >= 12
         cands = test_db.query(Candidate).all()
         cand_names = [c.name for c in cands]
         assert "Marcus Vance" in cand_names
         assert "Elena Rostova" in cand_names
-
-        # Verify idempotency on second run
-        seed_database(test_db, fast_mode=True)
-        assert test_db.query(Candidate).count() >= 12
     finally:
         test_db.close()
+
+
+def test_resume_upload_then_candidates_list_visibility():
+    """Upload a resume, verify response contains candidate_id and candidate_name, then assert it appears in GET /api/candidates."""
+    import io
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    c.drawString(100, 750, "Goutham Acharya")
+    c.drawString(100, 730, "Email: goutham.ai@example.com")
+    c.drawString(100, 710, "Phone: +1-555-839-1920")
+    c.drawString(100, 690, "AI Engineer with 5 years experience in Python, PyTorch, LLM, RAG, and FastAPI.")
+    c.save()
+    pdf_content = buf.getvalue()
+
+    file_payload = ("Goutham_Acharya_AI_Engineer_resume.pdf", io.BytesIO(pdf_content), "application/pdf")
+
+    res = client.post(
+        "/api/resumes/upload",
+        files={"files": file_payload}
+    )
+    assert res.status_code == 200
+    upload_data = res.json()
+    assert len(upload_data) == 1
+    item = upload_data[0]
+    assert item["processing_status"] == "completed"
+    assert item["candidate_id"] is not None
+    assert item["candidate_name"] is not None
+    created_cand_id = item["candidate_id"]
+    created_cand_name = item["candidate_name"]
+
+    # Now verify GET /api/candidates lists this candidate
+    cands_res = client.get("/api/candidates?limit=100")
+    assert cands_res.status_code == 200
+    cands_data = cands_res.json()
+    items = cands_data.get("items", [])
+    matching_cands = [c for c in items if c["id"] == created_cand_id]
+    assert len(matching_cands) == 1
+    assert matching_cands[0]["name"] == created_cand_name
 
 
 

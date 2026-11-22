@@ -180,45 +180,66 @@ async def parse_job_description_endpoint(file: UploadFile = File(...)):
     }
 
 
-@app.get("/health")
-def root_health_check():
+def _get_health_data():
+    from app.models.all_models import Candidate, Resume, User
+    from app.database.session import SessionLocal, engine
     user_count = 0
+    candidate_count = 0
+    resume_count = 0
     db_status = "connected"
     try:
         from app.api.deps import ensure_db_initialized
-        user_count = ensure_db_initialized()
+        ensure_db_initialized()
+        db = SessionLocal()
+        try:
+            user_count = db.query(User).count()
+            candidate_count = db.query(Candidate).count()
+            resume_count = db.query(Resume).count()
+        finally:
+            db.close()
     except Exception as e:
         db_status = f"disconnected: {str(e)}"
 
-    is_prod = bool(os.environ.get("VERCEL"))
+    is_prod = bool(os.environ.get("VERCEL")) or os.environ.get("ENVIRONMENT") == "production"
+    dialect = getattr(engine.dialect, "name", "sqlite").lower()
+
+    if is_prod and dialect == "sqlite":
+        logger.critical(
+            "CRITICAL WARNING: Database engine is SQLite in a serverless production environment! "
+            "Data in /tmp does not persist across container cold starts. Configure DATABASE_URL with PostgreSQL."
+        )
+
+    has_blob = bool(getattr(settings, "BLOB_READ_WRITE_TOKEN", None) or os.environ.get("BLOB_READ_WRITE_TOKEN"))
+    storage = "blob" if has_blob else "tmp (not persistent)"
+
     return {
-        "status": "healthy" if db_status == "connected" else "degraded",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": "production" if is_prod else "development",
         "database": db_status,
-        "users": user_count
+        "db_engine": dialect,
+        "storage": storage,
+        "users": user_count,
+        "candidates": candidate_count,
+        "resumes": resume_count,
+    }
+
+
+@app.get("/health")
+def root_health_check():
+    data = _get_health_data()
+    return {
+        "status": "healthy" if data["database"] == "connected" else "degraded",
+        **data
     }
 
 
 @app.get("/api/health")
 def api_health_check():
-    user_count = 0
-    db_status = "connected"
-    try:
-        from app.api.deps import ensure_db_initialized
-        user_count = ensure_db_initialized()
-    except Exception as e:
-        db_status = f"disconnected: {str(e)}"
-
-    is_prod = bool(os.environ.get("VERCEL"))
+    data = _get_health_data()
     return {
         "status": "ok",
-        "service": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "environment": "production" if is_prod else "development",
-        "database": db_status,
-        "users": user_count
+        **data
     }
 
 

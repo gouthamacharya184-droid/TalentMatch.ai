@@ -1,3 +1,4 @@
+import os
 import logging
 from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password
@@ -160,7 +161,9 @@ STANDARD_JOBS = [
 
 def seed_database(db: Session, fast_mode: bool = False):
     """Seed initial demo users, realistic job descriptions, and candidate resumes."""
-    # Fast exit if database is already fully populated
+    # Fast exit if database already populated with demo users and standard jobs
+    if fast_mode and db.query(User).count() >= 2 and db.query(Job).count() >= 6:
+        return
     if db.query(Candidate).count() >= 12 and db.query(Job).count() >= 6:
         return
 
@@ -229,8 +232,9 @@ def seed_database(db: Session, fast_mode: bool = False):
                 ))
     db.commit()
 
-    # Fast exit if database already populated with candidates
-    if db.query(Candidate).count() >= 12:
+    # In fast mode (serverless cold start), only seed demo users and standard jobs.
+    # Demo candidates are loaded via "Load 15 Demo Resumes" on the upload page, or in full test seed mode (fast_mode=False).
+    if fast_mode or db.query(Candidate).count() >= 12:
         return
 
     logger.info("Seeding realistic recruitment jobs and candidates...")

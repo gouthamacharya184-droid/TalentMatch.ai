@@ -155,6 +155,7 @@ class CandidateSkillResponse(CandidateSkillBase):
 class ResumeResponse(BaseModel):
     id: str
     candidate_id: Optional[str] = None
+    candidate_name: Optional[str] = None
     original_filename: str
     stored_filename: Optional[str] = None
     filename: Optional[str] = None
@@ -175,6 +176,10 @@ class ResumeResponse(BaseModel):
             res.filename = res.original_filename
         if res.status is None:
             res.status = res.processing_status
+        if res.candidate_name is None:
+            cand = getattr(obj, "candidate", None)
+            if cand and getattr(cand, "name", None):
+                res.candidate_name = cand.name
         if res.message is None:
             res.message = res.error_message or ("Resume processed successfully" if res.processing_status == "completed" else "Processing failed")
         return res

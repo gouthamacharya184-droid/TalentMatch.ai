@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Users,
   Sparkles,
@@ -18,7 +18,9 @@ import {
   GitCompare,
   ChevronDown,
   ChevronUp,
-  Star
+  Star,
+  Loader2,
+  RotateCcw
 } from 'lucide-react';
 import { jobsApi, candidatesApi, matchingApi, shortlistApi } from '../services/api';
 import type { Job, Candidate, MatchingAnalysis } from '../types';
@@ -107,289 +109,7 @@ const DEFAULT_REQUISITIONS: Job[] = [
   },
 ];
 
-// Default verified candidates ensuring Candidate Pool is always populated
-export const DEFAULT_CANDIDATES: Candidate[] = [
-  {
-    id: '00000000-0000-0000-0000-000000000201',
-    name: 'Marcus Vance',
-    email: 'marcus.vance@techdev.io',
-    phone: '+1 (415) 890-2341',
-    location: 'San Francisco, CA',
-    total_experience_years: 6.5,
-    education: { degree: 'B.S. in Computer Science', institution: 'UC Berkeley', year: '2018' },
-    extracted_profile: {
-      name: 'Marcus Vance',
-      email: 'marcus.vance@techdev.io',
-      bio: 'Senior Full-Stack Developer with 6+ years designing scalable microservices with FastAPI and dynamic frontends with React and TypeScript. Heavy cloud deployment on AWS ECS.',
-    },
-    status: 'shortlisted',
-    skills: [
-      { id: 'sk-1', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-2', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-3', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-4', skill_name: 'TypeScript', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-5', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-6', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-7', skill_name: 'AWS', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000202',
-    name: 'Elena Rostova',
-    email: 'elena.rostova@datascience.net',
-    phone: '+1 (206) 555-0192',
-    location: 'Seattle, WA',
-    total_experience_years: 5.0,
-    education: { degree: 'M.S. in Artificial Intelligence', institution: 'University of Washington', year: '2019' },
-    extracted_profile: {
-      name: 'Elena Rostova',
-      email: 'elena.rostova@datascience.net',
-      bio: 'NLP and Applied AI Engineer with 5 years experience creating semantic retrieval pipelines, transformers model fine-tuning, and production model serving.',
-    },
-    status: 'shortlisted',
-    skills: [
-      { id: 'sk-10', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-11', skill_name: 'PyTorch', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-12', skill_name: 'NLP', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-13', skill_name: 'Machine Learning', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-14', skill_name: 'Sentence Transformers', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-15', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-16', skill_name: 'Hugging Face', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000203',
-    name: 'David Chen',
-    email: 'david.chen.dev@cloudmail.org',
-    phone: '+1 (650) 441-9820',
-    location: 'Austin, TX',
-    total_experience_years: 4.5,
-    education: { degree: 'B.Tech in Information Technology', institution: 'UT Austin', year: '2020' },
-    extracted_profile: {
-      name: 'David Chen',
-      email: 'david.chen.dev@cloudmail.org',
-      bio: 'Full-Stack Software Engineer proficient in building responsive React applications and performant Python/FastAPI backend APIs. Strong database optimization.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-20', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-21', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-22', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-23', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-24', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-25', skill_name: 'Git', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000204',
-    name: 'Priya Sharma',
-    email: 'priya.sharma@aimlconsult.com',
-    phone: '+1 (408) 723-9114',
-    location: 'San Jose, CA',
-    total_experience_years: 7.0,
-    education: { degree: 'M.S. in Computer Science', institution: 'Stanford University', year: '2017' },
-    extracted_profile: {
-      name: 'Priya Sharma',
-      email: 'priya.sharma@aimlconsult.com',
-      bio: 'Principal AI Researcher and ML Engineer specializing in Large Language Models, semantic search embeddings, and scalable inference infrastructure.',
-    },
-    status: 'shortlisted',
-    skills: [
-      { id: 'sk-30', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-31', skill_name: 'PyTorch', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-32', skill_name: 'TensorFlow', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-33', skill_name: 'NLP', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-34', skill_name: 'Machine Learning', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-35', skill_name: 'RAG', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-36', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000205',
-    name: "Liam O'Connor",
-    email: 'liam.oconnor@frontendeers.io',
-    phone: '+1 (617) 932-1102',
-    location: 'Boston, MA',
-    total_experience_years: 3.5,
-    education: { degree: 'B.S. in Software Engineering', institution: 'Northeastern University', year: '2021' },
-    extracted_profile: {
-      name: "Liam O'Connor",
-      email: 'liam.oconnor@frontendeers.io',
-      bio: 'Frontend specialist focused on React, TypeScript, and modern component systems. Moderate backend experience with Node.js and REST endpoints.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-40', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-41', skill_name: 'TypeScript', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-42', skill_name: 'JavaScript', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-43', skill_name: 'Tailwind CSS', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-44', skill_name: 'REST API', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000206',
-    name: 'Amina Al-Mansoor',
-    email: 'amina.mansoor@backendpro.org',
-    phone: '+1 (312) 674-8891',
-    location: 'Chicago, IL',
-    total_experience_years: 5.5,
-    education: { degree: 'B.S. in Computer Engineering', institution: 'UIUC', year: '2019' },
-    extracted_profile: {
-      name: 'Amina Al-Mansoor',
-      email: 'amina.mansoor@backendpro.org',
-      bio: 'Backend Architect with extensive background in Python microservices, distributed caching with Redis, relational schemas in PostgreSQL, and Dockerized deployments.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-50', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-51', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-52', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-53', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-54', skill_name: 'Redis', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000207',
-    name: 'Carlos Mendez',
-    email: 'carlos.mendez@devopsphere.com',
-    phone: '+1 (720) 819-3304',
-    location: 'Denver, CO',
-    total_experience_years: 4.0,
-    education: { degree: 'B.S. in Information Systems', institution: 'CU Boulder', year: '2020' },
-    extracted_profile: {
-      name: 'Carlos Mendez',
-      email: 'carlos.mendez@devopsphere.com',
-      bio: 'DevOps and Cloud Infrastructure Engineer. Expert in CI/CD pipeline automation, container orchestration, and Infrastructure as Code using Terraform.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-60', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-61', skill_name: 'Kubernetes', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-62', skill_name: 'AWS', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-63', skill_name: 'CI/CD', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-64', skill_name: 'Terraform', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000208',
-    name: 'Sofia Lindqvist',
-    email: 'sofia.lindqvist@nordicml.se',
-    phone: '+1 (212) 704-5182',
-    location: 'New York, NY',
-    total_experience_years: 3.0,
-    education: { degree: 'M.S. in Data Science', institution: 'Columbia University', year: '2021' },
-    extracted_profile: {
-      name: 'Sofia Lindqvist',
-      email: 'sofia.lindqvist@nordicml.se',
-      bio: 'Data Scientist with focus on predictive modeling, exploratory analysis, and NLP text classification using Scikit-learn and Pandas.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-70', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-71', skill_name: 'Machine Learning', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-72', skill_name: 'Scikit-learn', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-73', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000209',
-    name: 'Jordan Taylor',
-    email: 'jordan.taylor@techlaunch.io',
-    phone: '+1 (503) 412-9981',
-    location: 'Portland, OR',
-    total_experience_years: 1.5,
-    education: { degree: 'B.S. in Computer Science', institution: 'Oregon State', year: '2023' },
-    extracted_profile: {
-      name: 'Jordan Taylor',
-      email: 'jordan.taylor@techlaunch.io',
-      bio: 'Junior Full-Stack Developer eager to grow in enterprise software development. Academic projects involving React web apps and Python scripts.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-80', skill_name: 'Python', proficiency_level: 'intermediate', source: 'extracted' },
-      { id: 'sk-81', skill_name: 'JavaScript', proficiency_level: 'intermediate', source: 'extracted' },
-      { id: 'sk-82', skill_name: 'React', proficiency_level: 'intermediate', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000210',
-    name: 'Kavita Patel',
-    email: 'kavita.patel@scalableweb.net',
-    phone: '+1 (919) 334-7812',
-    location: 'Raleigh, NC',
-    total_experience_years: 8.0,
-    education: { degree: 'B.S. in Computer Science', institution: 'NC State', year: '2016' },
-    extracted_profile: {
-      name: 'Kavita Patel',
-      email: 'kavita.patel@scalableweb.net',
-      bio: 'Staff Full-Stack Engineer with 8 years of enterprise application architecture. Proven leader in designing cloud-native microservices with FastAPI and modular React.',
-    },
-    status: 'shortlisted',
-    skills: [
-      { id: 'sk-90', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-91', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-92', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-93', skill_name: 'TypeScript', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-94', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000211',
-    name: 'Tariq Edwards',
-    email: 'tariq.edwards@datasystems.io',
-    phone: '+1 (404) 918-2231',
-    location: 'Atlanta, GA',
-    total_experience_years: 6.0,
-    education: { degree: 'M.S. in Machine Learning', institution: 'Georgia Tech', year: '2018' },
-    extracted_profile: {
-      name: 'Tariq Edwards',
-      email: 'tariq.edwards@datasystems.io',
-      bio: 'Senior NLP Engineer leading semantic search and information extraction systems for enterprise search catalogs using Transformer models.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-100', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-101', skill_name: 'PyTorch', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-102', skill_name: 'NLP', proficiency_level: 'advanced', source: 'extracted' },
-      { id: 'sk-103', skill_name: 'Sentence Transformers', proficiency_level: 'advanced', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000212',
-    name: 'Zoe Kravitz',
-    email: 'zoe.kravitz@webcraft.co',
-    phone: '+1 (305) 612-4490',
-    location: 'Miami, FL',
-    total_experience_years: 2.5,
-    education: { degree: 'Associate Degree in Web Programming', institution: 'Miami Dade College', year: '2022' },
-    extracted_profile: {
-      name: 'Zoe Kravitz',
-      email: 'zoe.kravitz@webcraft.co',
-      bio: 'Frontend Web Developer with 2.5 years experience constructing landing pages, dashboards, and responsive web components using React and JavaScript.',
-    },
-    status: 'analyzed',
-    skills: [
-      { id: 'sk-110', skill_name: 'JavaScript', proficiency_level: 'intermediate', source: 'extracted' },
-      { id: 'sk-111', skill_name: 'React', proficiency_level: 'intermediate', source: 'extracted' },
-      { id: 'sk-112', skill_name: 'HTML5', proficiency_level: 'intermediate', source: 'extracted' },
-      { id: 'sk-113', skill_name: 'Git', proficiency_level: 'intermediate', source: 'extracted' },
-    ],
-    created_at: new Date().toISOString(),
-  },
-];
-
-export const AIMatchingPage: React.FC = () => {
+export const MatchingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -399,6 +119,8 @@ export const AIMatchingPage: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>(initialJobId);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState<boolean>(true);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [matching, setMatching] = useState(false);
   const [matchingStatusText, setMatchingStatusText] = useState('Computing Semantic Vectors & Scoring...');
@@ -420,6 +142,7 @@ export const AIMatchingPage: React.FC = () => {
 
   // Candidate pool filters
   const [candidatePoolTab, setCandidatePoolTab] = useState<'all' | 'recent'>('all');
+  const [recentCandidateIds, setRecentCandidateIds] = useState<string[]>([]);
   const [candidatePoolSearch, setCandidatePoolSearch] = useState('');
 
   // Results display filters
@@ -450,109 +173,122 @@ export const AIMatchingPage: React.FC = () => {
   const lastAppliedTextRef = useRef<string>('');
 
   // Initial Fetch & Upload Handoff Handling
-  useEffect(() => {
-    const fetchData = async () => {
-      setError(null);
-      try {
-        const [jobsRes, candsRes] = await Promise.all([
-          jobsApi.getJobs({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
-          candidatesApi.getCandidates({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
-        ]);
-        const fetchedJobs = jobsRes?.items ?? [];
-        // Merge fetched jobs with default requisitions to ensure all requested roles exist
-        const existingTitles = new Set(fetchedJobs.map((j) => j.title.toLowerCase()));
-        const missingDefaults = DEFAULT_REQUISITIONS.filter((dj) => !existingTitles.has(dj.title.toLowerCase()));
-        const jobItems = [...fetchedJobs, ...missingDefaults];
+  const fetchData = async () => {
+    setError(null);
+    setCandidatesError(null);
+    setCandidatesLoading(true);
+    try {
+      const [jobsRes, candsRes] = await Promise.all([
+        jobsApi.getJobs({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
+        candidatesApi.getCandidates({ limit: 100 }).catch((err) => {
+          console.error('Failed to get candidates:', err);
+          setCandidatesError(formatApiError(err, 'Could not load candidates from server.'));
+          return { items: [], total: 0 };
+        }),
+      ]);
+      const fetchedJobs = jobsRes?.items ?? [];
+      // Merge fetched jobs with default requisitions to ensure all requested roles exist
+      const existingTitles = new Set(fetchedJobs.map((j) => j.title.toLowerCase()));
+      const missingDefaults = DEFAULT_REQUISITIONS.filter((dj) => !existingTitles.has(dj.title.toLowerCase()));
+      const jobItems = [...fetchedJobs, ...missingDefaults];
 
-        const fetchedCands = candsRes?.items ?? [];
-        // Merge fetched candidates with default verified candidates so Candidate Pool is never empty
-        const existingCandEmails = new Set(fetchedCands.map((c) => (c.email || '').toLowerCase()));
-        const existingCandIds = new Set(fetchedCands.map((c) => c.id));
-        const missingDefaultCands = DEFAULT_CANDIDATES.filter(
-          (dc) => !existingCandEmails.has((dc.email || '').toLowerCase()) && !existingCandIds.has(dc.id)
-        );
-        let candItems = [...fetchedCands, ...missingDefaultCands];
+      let candItems = candsRes?.items ?? [];
 
-        // Check if navigated from Resume Upload with uploaded candidates or specific candidate IDs
-        const navState = location.state as {
-          candidateIds?: string[];
-          uploadedCandidates?: Candidate[];
-          fromUpload?: boolean;
-          count?: number;
-        } | null;
+      // Check if navigated from Resume Upload with specific candidate IDs
+      const navState = location.state as {
+        candidateIds?: string[];
+        uploadedMeta?: Array<{ id: string; name: string; filename: string }>;
+        fromUpload?: boolean;
+        count?: number;
+      } | null;
 
-        if (navState && navState.uploadedCandidates && navState.uploadedCandidates.length > 0) {
-          const currentIds = new Set(candItems.map((c) => c.id));
-          const newUploaded = navState.uploadedCandidates.filter((c) => !currentIds.has(c.id));
-          candItems = [...newUploaded, ...candItems];
-        }
+      if (navState && navState.fromUpload && navState.candidateIds && navState.candidateIds.length > 0) {
+        setRecentCandidateIds(navState.candidateIds);
+        const presentIds = new Set(candItems.map((c) => c.id));
+        const missingCandidateIds = navState.candidateIds.filter((id) => !presentIds.has(id));
 
-        // Fetch any missing candidate IDs passed in navState
-        if (navState && navState.candidateIds && navState.candidateIds.length > 0) {
-          const presentIds = new Set(candItems.map((c) => c.id));
-          const missingCandidateIds = navState.candidateIds.filter((id) => !presentIds.has(id));
-          if (missingCandidateIds.length > 0) {
-            try {
-              const fetchedExtras = await Promise.all(
-                missingCandidateIds.map((id) => candidatesApi.getCandidate(id).catch(() => null))
+        if (missingCandidateIds.length > 0) {
+          // Attempt to fetch each missing candidate directly from database
+          try {
+            const fetchedExtras = await Promise.all(
+              missingCandidateIds.map((id) => candidatesApi.getCandidate(id).catch(() => null))
+            );
+            const validExtras = fetchedExtras.filter(Boolean) as Candidate[];
+            if (validExtras.length > 0) {
+              candItems = [...validExtras, ...candItems];
+            } else {
+              const missingName =
+                navState.uploadedMeta?.[0]?.name ||
+                navState.uploadedMeta?.[0]?.filename ||
+                missingCandidateIds[0];
+              setCandidatesError(
+                `Uploaded candidate "${missingName}" was not found in the database. In serverless deployments with SQLite, uploaded data is saved to /tmp and does not persist across separate container invocations. Please configure PostgreSQL DATABASE_URL to persist uploads.`
               );
-              const validExtras = fetchedExtras.filter(Boolean) as Candidate[];
-              if (validExtras.length > 0) {
-                candItems = [...validExtras, ...candItems];
-              }
-            } catch {
-              // ignore
             }
-          }
-        }
-
-        setJobs(jobItems);
-        setCandidates(candItems);
-
-        // Auto select first job if none chosen
-        const activeJobId = initialJobId || (jobItems.length > 0 ? jobItems[0].id : '');
-        setSelectedJobId(activeJobId);
-
-        if (navState && navState.fromUpload && navState.candidateIds && navState.candidateIds.length > 0) {
-          setSelectedCandidateIds(navState.candidateIds);
-          setFromUploadSuccess(true);
-          setUploadedResumeCount(navState.count || navState.candidateIds.length);
-          setCandidatePoolTab('recent');
-        } else {
-          // Pre-select all candidate IDs by default
-          setSelectedCandidateIds(candItems.map((c) => c.id));
-        }
-
-        // Fetch existing shortlisted candidates for the job if selected
-        if (activeJobId) {
-          try {
-            const shortlists = await shortlistApi.getJobShortlist(activeJobId);
-            const sMap: Record<string, boolean> = {};
-            (Array.isArray(shortlists) ? shortlists : []).forEach((s) => {
-              sMap[s.candidate_id] = true;
-            });
-            setShortlistedMap(sMap);
           } catch {
-            // ignore
-          }
-
-          // Fetch existing rankings
-          try {
-            const matchRes = await matchingApi.getRankings(activeJobId);
-            setResults(Array.isArray(matchRes) ? matchRes : []);
-          } catch {
-            setResults([]);
+            const missingName =
+              navState.uploadedMeta?.[0]?.name ||
+              navState.uploadedMeta?.[0]?.filename ||
+              missingCandidateIds[0];
+            setCandidatesError(
+              `Uploaded candidate "${missingName}" was not found in the database. In serverless deployments with SQLite, uploaded data is saved to /tmp and does not persist across separate container invocations. Please configure PostgreSQL DATABASE_URL to persist uploads.`
+            );
           }
         }
-      } catch (e) {
-        console.error(e);
-        setError(formatApiError(e, 'Failed to connect to the backend API. Operating in offline/preview mode.'));
-        setJobs(DEFAULT_REQUISITIONS);
-        setCandidates(DEFAULT_CANDIDATES);
-        setSelectedCandidateIds(DEFAULT_CANDIDATES.map((c) => c.id));
-        setResults([]);
+
+        const validSelectedIds = navState.candidateIds.filter((id) =>
+          candItems.some((c) => c.id === id)
+        );
+        setSelectedCandidateIds(validSelectedIds);
+        setFromUploadSuccess(true);
+        setUploadedResumeCount(navState.count || navState.candidateIds.length);
+        setCandidatePoolTab('recent');
+      } else {
+        // Pre-select all candidate IDs by default
+        setSelectedCandidateIds(candItems.map((c) => c.id));
       }
-    };
+
+      setJobs(jobItems);
+      setCandidates(candItems);
+
+      // Auto select first job if none chosen
+      const activeJobId = initialJobId || (jobItems.length > 0 ? jobItems[0].id : '');
+      setSelectedJobId(activeJobId);
+
+      // Fetch existing shortlisted candidates for the job if selected
+      if (activeJobId) {
+        try {
+          const shortlists = await shortlistApi.getJobShortlist(activeJobId);
+          const sMap: Record<string, boolean> = {};
+          (Array.isArray(shortlists) ? shortlists : []).forEach((s) => {
+            sMap[s.candidate_id] = true;
+          });
+          setShortlistedMap(sMap);
+        } catch {
+          // ignore
+        }
+
+        // Fetch existing rankings
+        try {
+          const matchRes = await matchingApi.getRankings(activeJobId);
+          setResults(Array.isArray(matchRes) ? matchRes : []);
+        } catch {
+          setResults([]);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      setError(formatApiError(e, 'Failed to connect to the backend API.'));
+      setJobs(DEFAULT_REQUISITIONS);
+      setCandidates([]);
+      setCandidatesError('Could not load candidates. Please check backend connection and retry.');
+      setResults([]);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [initialJobId, location.state]);
 
@@ -728,6 +464,10 @@ export const AIMatchingPage: React.FC = () => {
     return weights.required_skills + weights.semantic + weights.experience + weights.education;
   }, [weights]);
 
+  const recentCandidatesCount = useMemo(() => {
+    return (candidates ?? []).filter((c) => recentCandidateIds.includes(c.id)).length;
+  }, [candidates, recentCandidateIds]);
+
   // Candidate Selection logic
   const filteredCandidatePool = useMemo(() => {
     return (candidates ?? []).filter((c) => {
@@ -739,18 +479,12 @@ export const AIMatchingPage: React.FC = () => {
         (c.skills && c.skills.some((s) => (s?.skill_name ?? '').toLowerCase().includes(candidatePoolSearch.toLowerCase())));
 
       if (candidatePoolTab === 'recent') {
-        const navState = location.state as { candidateIds?: string[] } | null;
-        if (navState && navState.candidateIds && navState.candidateIds.length > 0) {
-          const isRecentMatch = navState.candidateIds.includes(c.id);
-          if (isRecentMatch) return matchesSearch;
-        }
-        // If candidatePoolTab is recent, but no candidates match navState (or navState is empty),
-        // fallback to show all matching candidates so pool is never empty
-        return matchesSearch;
+        const isRecent = recentCandidateIds.includes(c.id);
+        return isRecent && matchesSearch;
       }
       return matchesSearch;
     });
-  }, [candidates, candidatePoolSearch, candidatePoolTab, location.state]);
+  }, [candidates, candidatePoolSearch, candidatePoolTab, recentCandidateIds]);
 
   const toggleCandidate = (id: string) => {
     if ((selectedCandidateIds ?? []).includes(id)) {
@@ -1162,11 +896,10 @@ export const AIMatchingPage: React.FC = () => {
                   {currentJob.requirements?.map((r) => (
                     <span
                       key={r.id}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 ${
-                        r.category === 'mandatory'
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 ${r.category === 'mandatory'
                           ? 'bg-blue-100 text-blue-700 border border-blue-200'
                           : 'bg-purple-50 text-purple-700 border border-purple-200'
-                      }`}
+                        }`}
                     >
                       <span>{r.skill_name}</span>
                       <span className="text-[9px] opacity-75">
@@ -1205,24 +938,22 @@ export const AIMatchingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCandidatePoolTab('all')}
-                className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
-                  candidatePoolTab === 'all'
+                className={`flex-1 py-1.5 rounded-lg text-center transition-all ${candidatePoolTab === 'all'
                     ? 'bg-white font-bold text-slate-900 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
-                }`}
+                  }`}
               >
                 All ({candidates.length})
               </button>
               <button
                 type="button"
                 onClick={() => setCandidatePoolTab('recent')}
-                className={`flex-1 py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${
-                  candidatePoolTab === 'recent'
+                className={`flex-1 py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${candidatePoolTab === 'recent'
                     ? 'bg-white font-bold text-emerald-700 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
-                }`}
+                  }`}
               >
-                <span>Recently Uploaded</span>
+                <span>Recently Uploaded ({recentCandidatesCount})</span>
                 {fromUploadSuccess && (
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 )}
@@ -1252,11 +983,83 @@ export const AIMatchingPage: React.FC = () => {
 
           {/* Candidate List */}
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-[300px]">
-            {filteredCandidatePool.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 text-xs">
-                <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p>No candidates match your filter.</p>
+            {candidatesLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600 mb-2" />
+                <p>Loading candidate pool...</p>
               </div>
+            ) : candidatesError ? (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2.5 my-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="font-bold text-rose-900">Could not load candidates</p>
+                    <p className="text-[11px] text-rose-700 leading-relaxed">{candidatesError}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchData()}
+                  className="w-full py-1.5 px-3 bg-white border border-rose-300 hover:bg-rose-100/60 text-rose-700 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Retry Loading Candidates</span>
+                </button>
+              </div>
+            ) : candidates.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-xs space-y-2">
+                <Users className="w-8 h-8 mx-auto text-slate-300" />
+                <p className="font-semibold text-slate-700">No candidates in repository</p>
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  Upload resumes or load the demo candidate pool to start AI matching.
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <Link
+                    to="/resumes"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors shadow-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Resumes</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => fetchData()}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+            ) : filteredCandidatePool.length === 0 ? (
+              candidatePoolTab === 'recent' ? (
+                <div className="text-center py-10 text-slate-400 text-xs space-y-2">
+                  <Users className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="font-semibold text-slate-700">No recently uploaded candidates</p>
+                  <p className="text-[11px] text-slate-500">
+                    Switch to &quot;All&quot; to see all {candidates.length} candidates in the repository.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCandidatePoolTab('all')}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs hover:bg-blue-100 transition-colors cursor-pointer"
+                  >
+                    <span>View All ({candidates.length})</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center py-10 text-slate-400 text-xs space-y-2">
+                  <Users className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="font-semibold text-slate-700">No candidates match &quot;{candidatePoolSearch}&quot;</p>
+                  <button
+                    type="button"
+                    onClick={() => setCandidatePoolSearch('')}
+                    className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+                  >
+                    Clear Search Filter
+                  </button>
+                </div>
+              )
             ) : (
               filteredCandidatePool.map((c) => {
                 const isSelected = selectedCandidateIds.includes(c.id);
@@ -1264,17 +1067,16 @@ export const AIMatchingPage: React.FC = () => {
                   <div
                     key={c.id}
                     onClick={() => toggleCandidate(c.id)}
-                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                      isSelected
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-colors ${isSelected
                         ? 'border-blue-600 bg-blue-50/50'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => {}}
+                        onChange={() => { }}
                         className="rounded border-slate-300 text-blue-600 pointer-events-none"
                       />
                       <div className="truncate">
@@ -1333,33 +1135,30 @@ export const AIMatchingPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => applyWeightsPreset('balanced')}
-                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${
-                      weightsPreset === 'balanced'
+                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${weightsPreset === 'balanced'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-slate-200'
-                    }`}
+                      }`}
                   >
                     Balanced (40/30)
                   </button>
                   <button
                     type="button"
                     onClick={() => applyWeightsPreset('skills')}
-                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${
-                      weightsPreset === 'skills'
+                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${weightsPreset === 'skills'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-slate-200'
-                    }`}
+                      }`}
                   >
                     Skills First (50%)
                   </button>
                   <button
                     type="button"
                     onClick={() => applyWeightsPreset('experience')}
-                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${
-                      weightsPreset === 'experience'
+                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${weightsPreset === 'experience'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-slate-200'
-                    }`}
+                      }`}
                   >
                     Exp Heavy (40%)
                   </button>
@@ -1484,9 +1283,8 @@ export const AIMatchingPage: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div
             onClick={() => setTierFilter('all')}
-            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${
-              tierFilter === 'all' ? 'border-blue-600 shadow-md ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
-            }`}
+            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${tierFilter === 'all' ? 'border-blue-600 shadow-md ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
+              }`}
           >
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
               Total Evaluated
@@ -1499,9 +1297,8 @@ export const AIMatchingPage: React.FC = () => {
 
           <div
             onClick={() => setTierFilter('top')}
-            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${
-              tierFilter === 'top' ? 'border-emerald-600 shadow-md ring-2 ring-emerald-100' : 'border-slate-200 hover:border-slate-300'
-            }`}
+            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${tierFilter === 'top' ? 'border-emerald-600 shadow-md ring-2 ring-emerald-100' : 'border-slate-200 hover:border-slate-300'
+              }`}
           >
             <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">
               Top Matches (≥80%)
@@ -1514,9 +1311,8 @@ export const AIMatchingPage: React.FC = () => {
 
           <div
             onClick={() => setTierFilter('strong')}
-            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${
-              tierFilter === 'strong' ? 'border-blue-600 shadow-md ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
-            }`}
+            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${tierFilter === 'strong' ? 'border-blue-600 shadow-md ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
+              }`}
           >
             <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
               Strong (65-79%)
@@ -1529,9 +1325,8 @@ export const AIMatchingPage: React.FC = () => {
 
           <div
             onClick={() => setTierFilter('moderate')}
-            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${
-              tierFilter === 'moderate' ? 'border-amber-600 shadow-md ring-2 ring-amber-100' : 'border-slate-200 hover:border-slate-300'
-            }`}
+            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${tierFilter === 'moderate' ? 'border-amber-600 shadow-md ring-2 ring-amber-100' : 'border-slate-200 hover:border-slate-300'
+              }`}
           >
             <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">
               Moderate (50-64%)
@@ -1544,9 +1339,8 @@ export const AIMatchingPage: React.FC = () => {
 
           <div
             onClick={() => setTierFilter('low')}
-            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${
-              tierFilter === 'low' ? 'border-rose-600 shadow-md ring-2 ring-rose-100' : 'border-slate-200 hover:border-slate-300'
-            }`}
+            className={`p-4 bg-white rounded-2xl border cursor-pointer transition-all ${tierFilter === 'low' ? 'border-rose-600 shadow-md ring-2 ring-rose-100' : 'border-slate-200 hover:border-slate-300'
+              }`}
           >
             <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">
               Low Match (&lt;50%)
@@ -1593,9 +1387,8 @@ export const AIMatchingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-lg transition-all ${
-                    viewMode === 'table' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                    }`}
                   title="Table View"
                 >
                   <TableIcon className="w-4 h-4" />
@@ -1603,9 +1396,8 @@ export const AIMatchingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setViewMode('cards')}
-                  className={`p-1.5 rounded-lg transition-all ${
-                    viewMode === 'cards' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`p-1.5 rounded-lg transition-all ${viewMode === 'cards' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                    }`}
                   title="Card Grid View"
                 >
                   <LayoutGrid className="w-4 h-4" />
@@ -1691,15 +1483,14 @@ export const AIMatchingPage: React.FC = () => {
                       <tr key={res.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 pl-4">
                           <span
-                            className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${
-                              index === 0
+                            className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${index === 0
                                 ? 'bg-amber-100 text-amber-700 shadow-xs'
                                 : index === 1
-                                ? 'bg-slate-200 text-slate-700'
-                                : index === 2
-                                ? 'bg-amber-50 text-amber-800'
-                                : 'text-slate-400'
-                            }`}
+                                  ? 'bg-slate-200 text-slate-700'
+                                  : index === 2
+                                    ? 'bg-amber-50 text-amber-800'
+                                    : 'text-slate-400'
+                              }`}
                           >
                             {index + 1}
                           </span>
@@ -1713,36 +1504,34 @@ export const AIMatchingPage: React.FC = () => {
                         <td className="p-3">
                           <div className="flex items-center gap-1.5">
                             <span
-                              className={`font-black text-sm ${
-                                res.overall_score >= 80
+                              className={`font-black text-sm ${res.overall_score >= 80
                                   ? 'text-emerald-600'
                                   : res.overall_score >= 65
-                                  ? 'text-blue-600'
-                                  : res.overall_score >= 50
-                                  ? 'text-amber-600'
-                                  : 'text-rose-600'
-                              }`}
+                                    ? 'text-blue-600'
+                                    : res.overall_score >= 50
+                                      ? 'text-amber-600'
+                                      : 'text-rose-600'
+                                }`}
                             >
                               {res.overall_score}%
                             </span>
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                res.overall_score >= 80
+                              className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${res.overall_score >= 80
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : res.overall_score >= 65
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                  : res.overall_score >= 50
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
-                              }`}
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : res.overall_score >= 50
+                                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                      : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                }`}
                             >
                               {res.overall_score >= 80
                                 ? 'Top'
                                 : res.overall_score >= 65
-                                ? 'Strong'
-                                : res.overall_score >= 50
-                                ? 'Moderate'
-                                : 'Low'}
+                                  ? 'Strong'
+                                  : res.overall_score >= 50
+                                    ? 'Moderate'
+                                    : 'Low'}
                             </span>
                           </div>
                         </td>
@@ -1768,11 +1557,10 @@ export const AIMatchingPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={(e) => handleToggleCompare(res.candidate_id, e)}
-                              className={`p-1.5 rounded-lg border transition-all text-xs font-medium flex items-center gap-1 cursor-pointer ${
-                                isCompared
+                              className={`p-1.5 rounded-lg border transition-all text-xs font-medium flex items-center gap-1 cursor-pointer ${isCompared
                                   ? 'bg-purple-100 border-purple-300 text-purple-700'
                                   : 'border-slate-200 text-slate-600 hover:bg-slate-100'
-                              }`}
+                                }`}
                               title={isCompared ? 'Remove from compare' : 'Select for compare'}
                             >
                               <GitCompare className="w-3.5 h-3.5" />
@@ -1784,11 +1572,10 @@ export const AIMatchingPage: React.FC = () => {
                               type="button"
                               onClick={(e) => handleToggleShortlist(res.candidate_id, e)}
                               disabled={shortlistLoadingId === res.candidate_id}
-                              className={`p-1.5 rounded-lg border transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer ${
-                                isShortlisted
+                              className={`p-1.5 rounded-lg border transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer ${isShortlisted
                                   ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
                                   : 'border-slate-200 bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-                              }`}
+                                }`}
                               title={isShortlisted ? 'Candidate Shortlisted' : 'Add to Shortlist'}
                             >
                               <Star className={`w-3.5 h-3.5 ${isShortlisted ? 'fill-current' : ''}`} />
@@ -1827,15 +1614,14 @@ export const AIMatchingPage: React.FC = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2.5">
                         <span
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
-                            index === 0
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${index === 0
                               ? 'bg-amber-100 text-amber-700'
                               : index === 1
-                              ? 'bg-slate-200 text-slate-700'
-                              : index === 2
-                              ? 'bg-amber-50 text-amber-800'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
+                                ? 'bg-slate-200 text-slate-700'
+                                : index === 2
+                                  ? 'bg-amber-50 text-amber-800'
+                                  : 'bg-slate-100 text-slate-600'
+                            }`}
                         >
                           #{index + 1}
                         </span>
@@ -1849,15 +1635,14 @@ export const AIMatchingPage: React.FC = () => {
 
                       <div className="text-right">
                         <span
-                          className={`text-xl font-black ${
-                            res.overall_score >= 80
+                          className={`text-xl font-black ${res.overall_score >= 80
                               ? 'text-emerald-600'
                               : res.overall_score >= 65
-                              ? 'text-blue-600'
-                              : res.overall_score >= 50
-                              ? 'text-amber-600'
-                              : 'text-rose-600'
-                          }`}
+                                ? 'text-blue-600'
+                                : res.overall_score >= 50
+                                  ? 'text-amber-600'
+                                  : 'text-rose-600'
+                            }`}
                         >
                           {res.overall_score}%
                         </span>
@@ -1865,10 +1650,10 @@ export const AIMatchingPage: React.FC = () => {
                           {res.overall_score >= 80
                             ? 'Top Match'
                             : res.overall_score >= 65
-                            ? 'Strong'
-                            : res.overall_score >= 50
-                            ? 'Moderate'
-                            : 'Low'}
+                              ? 'Strong'
+                              : res.overall_score >= 50
+                                ? 'Moderate'
+                                : 'Low'}
                         </span>
                       </div>
                     </div>
@@ -1918,11 +1703,10 @@ export const AIMatchingPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={(e) => handleToggleCompare(res.candidate_id, e)}
-                          className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 cursor-pointer ${
-                            isCompared
+                          className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 cursor-pointer ${isCompared
                               ? 'bg-purple-100 border-purple-300 text-purple-700'
                               : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
+                            }`}
                           title="Compare"
                         >
                           <GitCompare className="w-3.5 h-3.5" />
@@ -1931,11 +1715,10 @@ export const AIMatchingPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={(e) => handleToggleShortlist(res.candidate_id, e)}
-                          className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 cursor-pointer ${
-                            isShortlisted
+                          className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 cursor-pointer ${isShortlisted
                               ? 'bg-emerald-600 border-emerald-600 text-white'
                               : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
+                            }`}
                           title={isShortlisted ? 'Shortlisted' : 'Add to Shortlist'}
                         >
                           <Star className={`w-3.5 h-3.5 ${isShortlisted ? 'fill-current' : ''}`} />
@@ -2024,9 +1807,8 @@ export const AIMatchingPage: React.FC = () => {
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">
                         Overall Compatibility
                       </span>
-                      <span className={`text-2xl font-black ${
-                        c.overall_score >= 80 ? 'text-emerald-600' : c.overall_score >= 65 ? 'text-blue-600' : 'text-amber-600'
-                      }`}>
+                      <span className={`text-2xl font-black ${c.overall_score >= 80 ? 'text-emerald-600' : c.overall_score >= 65 ? 'text-blue-600' : 'text-amber-600'
+                        }`}>
                         {c.overall_score}%
                       </span>
                     </div>
@@ -2119,3 +1901,6 @@ export const AIMatchingPage: React.FC = () => {
     </div>
   );
 };
+
+export const AIMatchingPage = MatchingPage;
+export default MatchingPage;

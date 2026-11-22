@@ -95,7 +95,10 @@ async def upload_resumes(
             # 3. Duplicate Detection Check against already completed resumes
             existing_dup = resume_service.check_duplicate(db, original_filename=filename, file_size=size)
             if existing_dup:
-                results.append(ResumeResponse.model_validate(existing_dup))
+                dup_res = ResumeResponse.model_validate(existing_dup)
+                if existing_dup.candidate:
+                    dup_res.candidate_name = existing_dup.candidate.name
+                results.append(dup_res)
                 continue
 
             # 4. Safe Atomic Process Resume

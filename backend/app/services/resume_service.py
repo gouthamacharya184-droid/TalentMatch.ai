@@ -365,7 +365,9 @@ class ResumeService:
             except Exception as log_err:
                 logger.warning(f"Failed to log activity: {log_err}")
 
-            return ResumeResponse.model_validate(resume)
+            resp = ResumeResponse.model_validate(resume)
+            resp.candidate_name = candidate.name
+            return resp
 
         except Exception as e:
             db.rollback()

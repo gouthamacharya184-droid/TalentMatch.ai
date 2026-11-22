@@ -5,16 +5,18 @@ import {
   Briefcase,
   Mail,
   LayoutGrid,
-  List
+  List,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { candidatesApi } from '../services/api';
 import type { Candidate } from '../types';
 import { CandidateDetailModal } from '../components/CandidateDetailModal';
-import { DEFAULT_CANDIDATES } from './AIMatchingPage';
 
 export const CandidatesPage: React.FC = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [minExp, setMinExp] = useState<number | undefined>(undefined);
@@ -23,17 +25,18 @@ export const CandidatesPage: React.FC = () => {
 
   const fetchCandidates = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await candidatesApi.getCandidates({
         search: search || undefined,
         status: statusFilter || undefined,
         min_experience: minExp,
       });
-      const items = res?.items ?? [];
-      setCandidates(items.length > 0 ? items : DEFAULT_CANDIDATES);
-    } catch (e) {
+      setCandidates(res?.items ?? []);
+    } catch (e: any) {
       console.error(e);
-      setCandidates(DEFAULT_CANDIDATES);
+      setError(e?.response?.data?.detail || e?.message || 'Could not load candidates');
+      setCandidates([]);
     } finally {
       setLoading(false);
     }
@@ -130,6 +133,22 @@ export const CandidatesPage: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span className="font-semibold">{error}</span>
+          </div>
+          <button
+            onClick={() => fetchCandidates()}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
       {/* ── Views: Table vs Grid ────────────────────────────────── */}
       {viewMode === 'table' ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -217,6 +236,10 @@ export const CandidatesPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      ) : candidates.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+          No candidates match the specified filters.
         </div>
       ) : (
         /* Grid View */
