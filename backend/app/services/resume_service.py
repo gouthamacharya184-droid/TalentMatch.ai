@@ -1,19 +1,25 @@
+import hashlib
+import logging
 import os
 import tempfile
 import uuid
-import hashlib
-import logging
-from typing import Dict, Optional, Tuple
+
 import httpx
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.models.all_models import Candidate, CandidateSkill, Resume, EvidenceReference, utc_now
-from app.schemas.all_schemas import ResumeResponse
-from app.parsers.pdf_parser import extract_text_from_pdf
-from app.parsers.docx_parser import extract_text_from_docx
 from app.ai_engine.agents.resume_agent import ResumeIntelligenceAgent
+from app.core.config import settings
+from app.models.all_models import (
+    Candidate,
+    CandidateSkill,
+    EvidenceReference,
+    Resume,
+    utc_now,
+)
+from app.parsers.docx_parser import extract_text_from_docx
+from app.parsers.pdf_parser import extract_text_from_pdf
+from app.schemas.all_schemas import ResumeResponse
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -24,7 +30,9 @@ class ResumeService:
         self.resume_agent = ResumeIntelligenceAgent()
         self.blob_token = getattr(settings, "BLOB_READ_WRITE_TOKEN", None) or os.environ.get("BLOB_READ_WRITE_TOKEN")
 
-    async def _upload_to_vercel_blob(self, filename: str, content: bytes, content_type: Optional[str] = None) -> Optional[str]:
+    async def _upload_to_vercel_blob(
+        self, filename: str, content: bytes, content_type: str | None = None
+    ) -> str | None:
         """Upload file content directly to Vercel Blob store using REST API."""
         if not self.blob_token:
             return None
@@ -69,7 +77,7 @@ class ResumeService:
             logger.warning(f"Failed to delete Vercel Blob {blob_url}: {e}")
             return False
 
-    async def save_uploaded_file(self, upload_file: UploadFile) -> Tuple[str, str, int, Optional[str]]:
+    async def save_uploaded_file(self, upload_file: UploadFile) -> tuple[str, str, int, str | None]:
         """Save file to storage and return (stored_filename, file_path_or_url, file_size, error_msg)."""
         filename = upload_file.filename or "unknown_file"
         ext = os.path.splitext(filename)[1].lower()
@@ -88,9 +96,36 @@ class ResumeService:
 
         target_path = os.path.join(upload_dir, unique_name)
 
+        max_bytes = int(settings.MAX_FILE_SIZE_MB * 1024 * 1024)
+        if getattr(upload_file, "size", None) and upload_file.size > max_bytes:
+            return (
+                unique_name,
+                target_path,
+                upload_file.size,
+                f"File exceeds maximum allowed size ({settings.MAX_FILE_SIZE_MB}MB).",
+            )
+
         try:
-            content = await upload_file.read()
-            file_size = len(content)
+            # Memory-bounded chunked read with early cut-off
+            chunk_size = 1024 * 64
+            total_read = 0
+            chunks = []
+            while True:
+                chunk = await upload_file.read(chunk_size)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > max_bytes:
+                    return (
+                        unique_name,
+                        target_path,
+                        total_read,
+                        f"File exceeds maximum allowed size ({settings.MAX_FILE_SIZE_MB}MB).",
+                    )
+                chunks.append(chunk)
+
+            content = b"".join(chunks)
+            file_size = total_read
 
             if file_size == 0:
                 return unique_name, target_path, 0, "File is empty (0 bytes)."
@@ -99,7 +134,12 @@ class ResumeService:
             if ext == ".pdf":
                 if not content.startswith(b"%PDF-"):
                     if content.startswith(b"MZ"):
-                        return unique_name, target_path, file_size, "Invalid file content: Executable binary detected instead of PDF."
+                        return (
+                            unique_name,
+                            target_path,
+                            file_size,
+                            "Invalid file content: Executable binary detected instead of PDF.",
+                        )
             elif ext in [".docx", ".doc"]:
                 if ext == ".docx" and not content.startswith(b"PK\x03\x04"):
                     return unique_name, target_path, file_size, "Corrupted DOCX: Invalid zip container header."
@@ -116,9 +156,9 @@ class ResumeService:
 
             return unique_name, target_path, file_size, None
         except Exception as e:
-            return unique_name, target_path, 0, f"Failed to save file: {str(e)}"
+            return unique_name, target_path, 0, f"Failed to save file: {e!s}"
 
-    def compute_file_hash(self, file_path: str) -> Optional[str]:
+    def compute_file_hash(self, file_path: str) -> str | None:
         """Compute SHA-256 hash of file on disk."""
         try:
             sha256 = hashlib.sha256()
@@ -129,22 +169,29 @@ class ResumeService:
         except Exception:
             return None
 
-    def check_duplicate(self, db: Session, original_filename: str, file_size: int, content_hash: Optional[str] = None) -> Optional[Resume]:
+    def check_duplicate(
+        self, db: Session, original_filename: str, file_size: int, content_hash: str | None = None
+    ) -> Resume | None:
         """Check whether an identical resume already exists via hash or filename+size."""
         try:
             if content_hash:
-                dup = db.query(Resume).filter(
-                    Resume.content_hash == content_hash,
-                    Resume.processing_status == "completed"
-                ).first()
+                dup = (
+                    db.query(Resume)
+                    .filter(Resume.content_hash == content_hash, Resume.processing_status == "completed")
+                    .first()
+                )
                 if dup:
                     return dup
 
-            return db.query(Resume).filter(
-                Resume.original_filename == original_filename,
-                Resume.file_size == file_size,
-                Resume.processing_status == "completed"
-            ).first()
+            return (
+                db.query(Resume)
+                .filter(
+                    Resume.original_filename == original_filename,
+                    Resume.file_size == file_size,
+                    Resume.processing_status == "completed",
+                )
+                .first()
+            )
         except Exception as e:
             logger.warning(f"Error checking duplicate for {original_filename}: {e}")
             db.rollback()
@@ -157,7 +204,7 @@ class ResumeService:
         stored_filename: str,
         file_size: int,
         error_msg: str,
-        user_id: Optional[str] = None
+        user_id: str | None = None,
     ) -> ResumeResponse:
         """Create a structured failed response without polluting candidate table."""
         ext = os.path.splitext(original_filename)[1].lower().replace(".", "")
@@ -173,7 +220,7 @@ class ResumeService:
             status="failed",
             error_message=error_msg,
             message=error_msg,
-            created_at=utc_now()
+            created_at=utc_now(),
         )
 
     def process_resume_file(
@@ -183,7 +230,7 @@ class ResumeService:
         original_filename: str,
         stored_filename: str,
         file_size: int,
-        user_id: Optional[str] = None
+        user_id: str | None = None,
     ) -> ResumeResponse:
         """
         Process single uploaded resume using ResumeIntelligenceAgent:
@@ -197,7 +244,7 @@ class ResumeService:
 
         # 1. Extract text and page decomposition before database transaction
         extracted_text = ""
-        page_texts: Dict[str, str] = {}
+        page_texts: dict[str, str] = {}
         page_count = 1
         error_msg = None
 
@@ -218,13 +265,13 @@ class ResumeService:
             page_texts = {"1": extracted_text}
         elif ext == "txt":
             try:
-                with open(local_extract_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(local_extract_path, encoding="utf-8", errors="ignore") as f:
                     extracted_text = f.read()
                 if not extracted_text.strip():
                     error_msg = "Text file is empty or contains only whitespace."
                 page_texts = {"1": extracted_text}
             except Exception as e:
-                error_msg = f"Failed to read text file: {str(e)}"
+                error_msg = f"Failed to read text file: {e!s}"
         else:
             error_msg = f"Unsupported file format: .{ext}"
 
@@ -243,7 +290,7 @@ class ResumeService:
                 stored_filename=stored_filename,
                 file_size=file_size,
                 error_msg=error_msg or "Empty document without readable text.",
-                user_id=user_id
+                user_id=user_id,
             )
 
         # 2. Invoke ResumeIntelligenceAgent
@@ -254,7 +301,7 @@ class ResumeService:
                 filename=original_filename,
                 file_size=file_size,
                 content_hash=content_hash,
-                db=db
+                db=db,
             )
         except Exception as e:
             logger.error(f"Error in ResumeIntelligenceAgent for {original_filename}: {e}")
@@ -263,8 +310,8 @@ class ResumeService:
                 original_filename=original_filename,
                 stored_filename=stored_filename,
                 file_size=file_size,
-                error_msg=f"Resume Agent parsing failed: {str(e)}",
-                user_id=user_id
+                error_msg=f"Resume Agent parsing failed: {e!s}",
+                user_id=user_id,
             )
 
         # 3. Atomic Database Transaction: Candidate + Skills + Projects + Resume + Evidence
@@ -285,7 +332,7 @@ class ResumeService:
                 projects=profile.get("projects", []),
                 certifications=profile.get("certifications", []),
                 extracted_profile=profile,
-                status="new"
+                status="new",
             )
             db.add(candidate)
             db.flush()  # assign candidate.id
@@ -295,14 +342,14 @@ class ResumeService:
                 skill_name = s.get("skill_name", "")
                 if not skill_name:
                     continue
-                
+
                 evidence_type = s.get("evidence_type", "explicit")
                 skill_obj = CandidateSkill(
                     candidate_id=candidate.id,
                     skill_name=skill_name,
                     proficiency_level=s.get("proficiency_level", "intermediate"),
                     source="extracted",
-                    evidence_type=evidence_type
+                    evidence_type=evidence_type,
                 )
                 db.add(skill_obj)
 
@@ -314,7 +361,7 @@ class ResumeService:
                     snippet=s.get("snippet", f"Identified {skill_name} in candidate profile."),
                     page_number=s.get("source_page", 1),
                     confidence=1.0 if evidence_type in ["explicit", "professional"] else 0.85,
-                    evidence_classification=evidence_type
+                    evidence_classification=evidence_type,
                 )
                 db.add(ev_ref)
 
@@ -328,7 +375,7 @@ class ResumeService:
                         snippet=p.get("description", p["title"])[:250],
                         page_number=p.get("source_page", 1),
                         confidence=0.95,
-                        evidence_classification="project"
+                        evidence_classification="project",
                     )
                     db.add(ev_proj)
 
@@ -345,7 +392,7 @@ class ResumeService:
                 raw_text=extracted_text,
                 page_texts=page_texts,
                 processing_status="completed",
-                error_message=None
+                error_message=None,
             )
             db.add(resume)
 
@@ -360,7 +407,7 @@ class ResumeService:
                     entity_type="candidate",
                     entity_id=candidate.id,
                     user_id=user_id,
-                    details={"candidate_name": candidate.name, "skills_count": len(profile.get("skills", []))}
+                    details={"candidate_name": candidate.name, "skills_count": len(profile.get("skills", []))},
                 )
             except Exception as log_err:
                 logger.warning(f"Failed to log activity: {log_err}")
@@ -377,20 +424,14 @@ class ResumeService:
                 original_filename=original_filename,
                 stored_filename=stored_filename,
                 file_size=file_size,
-                error_msg=f"Database persistence error: {str(e)}",
-                user_id=user_id
+                error_msg=f"Database persistence error: {e!s}",
+                user_id=user_id,
             )
 
-    def get_resume(self, db: Session, resume_id: str) -> Optional[Resume]:
+    def get_resume(self, db: Session, resume_id: str) -> Resume | None:
         return db.query(Resume).filter(Resume.id == resume_id).first()
 
-    def get_resumes(
-        self,
-        db: Session,
-        skip: int = 0,
-        limit: int = 50,
-        status: Optional[str] = None
-    ) -> tuple:
+    def get_resumes(self, db: Session, skip: int = 0, limit: int = 50, status: str | None = None) -> tuple:
         query = db.query(Resume)
         if status:
             query = query.filter(Resume.processing_status == status)

@@ -1,20 +1,21 @@
-import uuid
 import logging
-from typing import Dict, Any, List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+import uuid
+from typing import Any
 
+from sqlalchemy import desc, func
+from sqlalchemy.orm import Session
+
+from app.ai_engine.llm_service import LLMService
 from app.models.all_models import (
-    Job,
-    JobRequirement,
     Candidate,
     CandidateSkill,
-    Resume,
+    Job,
+    JobRequirement,
     MatchingAnalysis,
+    Resume,
     Shortlist,
-    User
+    User,
 )
-from app.ai_engine.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,9 @@ class ChatbotService:
 
     def __init__(self):
         self.llm_service = LLMService()
-        self._conversations: Dict[str, List[Dict[str, str]]] = {}
+        self._conversations: dict[str, list[dict[str, str]]] = {}
 
-    def get_conversation_history(self, conversation_id: str) -> List[Dict[str, str]]:
+    def get_conversation_history(self, conversation_id: str) -> list[dict[str, str]]:
         return self._conversations.get(conversation_id, [])
 
     def record_message(self, conversation_id: str, role: str, content: str):
@@ -45,15 +46,36 @@ class ChatbotService:
         if conversation_id in self._conversations:
             del self._conversations[conversation_id]
 
+    def classify_intent(self, message: str) -> str:
+        """Classify user query intent for recruitment assistance and safe boundary routing."""
+        msg = message.lower().strip()
+        if any(w in msg for w in ["malware", "virus", "exploit", "keylogger", "hack", "cookie", "recipe", "chocolate"]):
+            return "out_of_scope"
+        if any(w in msg for w in ["top", "rank", "leaderboard", "best candidate"]):
+            return "ranking_query"
+        if any(w in msg for w in ["score", "calculated", "formula", "algorithm", "why"]):
+            return "score_explanation"
+        if any(w in msg for w in ["shortlist"]):
+            return "shortlist_query"
+        if any(w in msg for w in ["interview", "question", "questions"]):
+            return "interview_query"
+        if any(w in msg for w in ["missing", "gap", "lacking"]):
+            return "gap_analysis"
+        if any(w in msg for w in ["compare", "comparison"]):
+            return "comparison_query"
+        if any(w in msg for w in ["upload", "resume", "cv"]):
+            return "upload_query"
+        if any(w in msg for w in ["dashboard", "stats", "analytics"]):
+            return "stats_query"
+        return "general_recruitment"
+
+    _classify_intent = classify_intent
+
     def _fetch_ground_truth(
-        self,
-        db: Session,
-        message: str,
-        job_id: Optional[str] = None,
-        candidate_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, db: Session, message: str, job_id: str | None = None, candidate_id: str | None = None
+    ) -> dict[str, Any]:
         """Fetch real database facts relevant to user query."""
-        facts: Dict[str, Any] = {}
+        facts: dict[str, Any] = {}
 
         # 1. Global Platform Stats
         facts["total_jobs"] = db.query(Job).count()
@@ -89,7 +111,7 @@ class ChatbotService:
                 "min_experience": target_job.min_experience,
                 "education_req": target_job.education_req,
                 "mandatory_skills": mandatory,
-                "preferred_skills": preferred
+                "preferred_skills": preferred,
             }
 
         # 3. Candidate Context
@@ -105,13 +127,17 @@ class ChatbotService:
                     break
 
         if target_candidate:
-            skills = db.query(CandidateSkill.skill_name).filter(CandidateSkill.candidate_id == target_candidate.id).all()
+            skills = (
+                db.query(CandidateSkill.skill_name).filter(CandidateSkill.candidate_id == target_candidate.id).all()
+            )
             # Fetch match analysis if exists
             match_analysis = None
             if target_job:
                 match_analysis = (
                     db.query(MatchingAnalysis)
-                    .filter(MatchingAnalysis.candidate_id == target_candidate.id, MatchingAnalysis.job_id == target_job.id)
+                    .filter(
+                        MatchingAnalysis.candidate_id == target_candidate.id, MatchingAnalysis.job_id == target_job.id
+                    )
                     .first()
                 )
             if not match_analysis:
@@ -134,7 +160,7 @@ class ChatbotService:
                 "education_score": match_analysis.education_score if match_analysis else None,
                 "strengths": match_analysis.strengths if match_analysis else [],
                 "skill_gaps": match_analysis.skill_gaps if match_analysis else [],
-                "missing_skills": match_analysis.missing_skills if match_analysis else []
+                "missing_skills": match_analysis.missing_skills if match_analysis else [],
             }
 
         # 4. Top Ranked Candidates for current job or overall
@@ -147,23 +173,21 @@ class ChatbotService:
         for tm in top_matches:
             c = db.query(Candidate).filter(Candidate.id == tm.candidate_id).first()
             if c:
-                top_list.append({
-                    "candidate_id": c.id,
-                    "name": c.name,
-                    "score": round(tm.overall_score, 1),
-                    "experience_years": c.total_experience_years,
-                    "strengths": tm.strengths[:2],
-                    "skill_gaps": tm.skill_gaps[:2]
-                })
+                top_list.append(
+                    {
+                        "candidate_id": c.id,
+                        "name": c.name,
+                        "score": round(tm.overall_score, 1),
+                        "experience_years": c.total_experience_years,
+                        "strengths": tm.strengths[:2],
+                        "skill_gaps": tm.skill_gaps[:2],
+                    }
+                )
         facts["top_candidates"] = top_list
 
         return facts
 
-    def _generate_fallback_response(
-        self,
-        message: str,
-        facts: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _generate_fallback_response(self, message: str, facts: dict[str, Any]) -> dict[str, Any]:
         """Evidence-based deterministic response when LLM is unavailable or quota limited."""
         msg = message.lower().strip()
         job = facts.get("active_job")
@@ -183,7 +207,11 @@ class ChatbotService:
             )
             return {
                 "message": text,
-                "suggestions": ["Show me the top-ranked candidates.", "What are the missing skills for a candidate?", "Explain the recruitment dashboard."]
+                "suggestions": [
+                    "Show me the top-ranked candidates.",
+                    "What are the missing skills for a candidate?",
+                    "Explain the recruitment dashboard.",
+                ],
             }
 
         # 2. Top-ranked candidates
@@ -199,11 +227,17 @@ class ChatbotService:
                         f"   - **Strengths:** {', '.join(c['strengths']) if c['strengths'] else 'Strong profile alignment'}\n"
                         f"   - **Skill Gaps:** {', '.join(c['skill_gaps']) if c['skill_gaps'] else 'None identified'}"
                     )
-                lines.append("\n*Click on any candidate name or view the **Candidate Ranking** page to inspect full profiles and export reports.*")
+                lines.append(
+                    "\n*Click on any candidate name or view the **Candidate Ranking** page to inspect full profiles and export reports.*"
+                )
                 text = "\n".join(lines)
             return {
                 "message": text,
-                "suggestions": ["Compare the top two candidates.", "What are the missing skills for a candidate?", "How does candidate score work?"]
+                "suggestions": [
+                    "Compare the top two candidates.",
+                    "What are the missing skills for a candidate?",
+                    "How does candidate score work?",
+                ],
             }
 
         # 3. Missing skills or skill gaps
@@ -226,7 +260,11 @@ class ChatbotService:
                 text = "Please select a candidate or run an AI match first to analyze missing skill gaps."
             return {
                 "message": text,
-                "suggestions": ["Show me the top-ranked candidates.", "How can I compare candidates?", "How does AI resume matching work?"]
+                "suggestions": [
+                    "Show me the top-ranked candidates.",
+                    "How can I compare candidates?",
+                    "How does AI resume matching work?",
+                ],
             }
 
         # 4. Compare candidates
@@ -247,7 +285,11 @@ class ChatbotService:
                 text = "To compare candidates, please ensure at least two candidates have been evaluated under the current job description."
             return {
                 "message": text,
-                "suggestions": ["Show me the top-ranked candidates.", "How is the candidate score calculated?", "Explain the recruitment dashboard."]
+                "suggestions": [
+                    "Show me the top-ranked candidates.",
+                    "How is the candidate score calculated?",
+                    "Explain the recruitment dashboard.",
+                ],
             }
 
         # 5. Upload multiple resumes
@@ -262,7 +304,11 @@ class ChatbotService:
             )
             return {
                 "message": text,
-                "suggestions": ["How does AI resume matching work?", "Show me the top-ranked candidates.", "Explain the recruitment dashboard."]
+                "suggestions": [
+                    "How does AI resume matching work?",
+                    "Show me the top-ranked candidates.",
+                    "Explain the recruitment dashboard.",
+                ],
             }
 
         # 6. Recruitment dashboard & stats
@@ -279,7 +325,11 @@ class ChatbotService:
             )
             return {
                 "message": text,
-                "suggestions": ["Show me the top-ranked candidates.", "How is the candidate score calculated?", "Compare the top two candidates."]
+                "suggestions": [
+                    "Show me the top-ranked candidates.",
+                    "How is the candidate score calculated?",
+                    "Compare the top two candidates.",
+                ],
             }
 
         # 7. General Welcome / Platform Help
@@ -302,20 +352,20 @@ class ChatbotService:
                 "What are the missing skills for a candidate?",
                 "How do I upload multiple resumes?",
                 "How can I compare candidates?",
-                "Explain the recruitment dashboard."
-            ]
+                "Explain the recruitment dashboard.",
+            ],
         }
 
     def chat(
         self,
         db: Session,
         message: str,
-        conversation_id: Optional[str] = None,
-        job_id: Optional[str] = None,
-        candidate_id: Optional[str] = None,
-        page_context: Optional[str] = None,
-        user: Optional[User] = None
-    ) -> Dict[str, Any]:
+        conversation_id: str | None = None,
+        job_id: str | None = None,
+        candidate_id: str | None = None,
+        page_context: str | None = None,
+        user: User | None = None,
+    ) -> dict[str, Any]:
         """Process chat message and return intelligent response."""
         cid = conversation_id or str(uuid.uuid4())
         self.record_message(cid, "user", message)
@@ -332,16 +382,16 @@ You are the "TalentMatch AI Assistant", an executive talent acquisition and AI r
 Your goal is to help recruiters evaluate candidate resumes, explain matching algorithms, summarize applicant profiles, and navigate TalentMatch AI.
 
 CURRENT LIVE RECRUITMENT DATABASE FACTS (Ground Truth):
-- Total Jobs: {facts.get('total_jobs')}
-- Total Resumes Uploaded: {facts.get('total_resumes')}
-- Total Candidate Profiles: {facts.get('total_candidates')}
-- Platform Average Match Score: {facts.get('avg_matching_score')}/100
-- Total Shortlisted Candidates: {facts.get('shortlisted_count')}
-- Current Job Context: {facts.get('active_job')}
-- Selected Candidate Context: {facts.get('target_candidate')}
-- Current Top Candidates: {facts.get('top_candidates')}
-- Recruiter Page Context: {page_context or 'Platform General'}
-- Current Authenticated User: {user.full_name if user else 'Recruiter'}
+- Total Jobs: {facts.get("total_jobs")}
+- Total Resumes Uploaded: {facts.get("total_resumes")}
+- Total Candidate Profiles: {facts.get("total_candidates")}
+- Platform Average Match Score: {facts.get("avg_matching_score")}/100
+- Total Shortlisted Candidates: {facts.get("shortlisted_count")}
+- Current Job Context: {facts.get("active_job")}
+- Selected Candidate Context: {facts.get("target_candidate")}
+- Current Top Candidates: {facts.get("top_candidates")}
+- Recruiter Page Context: {page_context or "Platform General"}
+- Current Authenticated User: {user.full_name if user else "Recruiter"}
 
 CRITICAL OPERATIONAL RULES:
 1. Ground Truth Only: ALWAYS use the real database numbers, candidate names, and scores provided above. NEVER fabricate candidate names, jobs, or scores.
@@ -367,7 +417,7 @@ CRITICAL OPERATIONAL RULES:
                 "Show me the top-ranked candidates.",
                 "How is the candidate score calculated?",
                 "What are the missing skills for a candidate?",
-                "How can I compare candidates?"
+                "How can I compare candidates?",
             ]
         else:
             # Deterministic Fallback Engine
@@ -389,25 +439,26 @@ CRITICAL OPERATIONAL RULES:
                     "total_jobs": facts.get("total_jobs"),
                     "total_resumes": facts.get("total_resumes"),
                     "total_candidates": facts.get("total_candidates"),
-                }
+                },
             },
             "suggestions": suggestions,
-            "mode": mode
+            "mode": mode,
         }
 
     def generate_welcome_message(
         self,
         db: Session,
-        user: Optional[User] = None,
-        page_context: Optional[str] = None,
-        job_id: Optional[str] = None,
-        candidate_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        user: User | None = None,
+        page_context: str | None = None,
+        job_id: str | None = None,
+        candidate_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Generate a dynamic, non-static, context-aware welcome message based on recruiter identity,
         current time of day, active page route, and live recruitment database metrics.
         """
         from datetime import datetime
+
         now = datetime.now()
         hour = now.hour
         if hour < 12:
@@ -454,8 +505,6 @@ CRITICAL OPERATIONAL RULES:
                 "total_candidates": total_candidates,
                 "total_resumes": total_resumes,
                 "avg_score": avg_score,
-                "shortlisted_count": shortlisted_count
-            }
+                "shortlisted_count": shortlisted_count,
+            },
         }
-
-

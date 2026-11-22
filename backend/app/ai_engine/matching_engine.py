@@ -1,4 +1,5 @@
-from typing import List, Dict, Any
+from typing import Any
+
 from app.ai_engine.embeddings import EmbeddingService
 from app.ai_engine.skill_extractor import SkillExtractor
 
@@ -19,11 +20,11 @@ class MatchingEngine:
 
     def match(
         self,
-        job_data: Dict[str, Any],
-        candidate_data: Dict[str, Any],
-        candidate_skills: List[str],
-        resume_text: str = ""
-    ) -> Dict[str, Any]:
+        job_data: dict[str, Any],
+        candidate_data: dict[str, Any],
+        candidate_skills: list[str],
+        resume_text: str = "",
+    ) -> dict[str, Any]:
         """
         Compare job requirements against candidate resume and calculate
         transparent, explainable matching scores.
@@ -41,15 +42,46 @@ class MatchingEngine:
                 {
                     "skill_name": item["skill_name"],
                     "category": "mandatory" if idx < 5 else "preferred",
-                    "skill_type": item["category"]
+                    "skill_type": item["category"],
                 }
                 for idx, item in enumerate(extracted_job_skills)
             ]
+        else:
+            # Standardize requirement formats (supports dicts, tuples, objects)
+            norm_reqs = []
+            for r in job_reqs:
+                if isinstance(r, dict):
+                    norm_reqs.append(
+                        {
+                            "skill_name": r.get("skill_name", ""),
+                            "category": r.get("category", "mandatory"),
+                            "skill_type": r.get("skill_type", "technical"),
+                        }
+                    )
+                elif isinstance(r, (list, tuple)):
+                    s_name = r[0] if len(r) > 0 else ""
+                    cat = r[1] if len(r) > 1 else "mandatory"
+                    stype = r[2] if len(r) > 2 else "technical"
+                    norm_reqs.append({"skill_name": s_name, "category": cat, "skill_type": stype})
+                elif hasattr(r, "skill_name"):
+                    norm_reqs.append(
+                        {
+                            "skill_name": getattr(r, "skill_name", ""),
+                            "category": getattr(r, "category", "mandatory"),
+                            "skill_type": getattr(r, "skill_type", "technical"),
+                        }
+                    )
+            job_reqs = norm_reqs
 
         # Candidate details
         cand_exp_years = float(candidate_data.get("total_experience_years", 0.0))
         cand_edu_list = candidate_data.get("education", [])
-        cand_skill_set = {s.lower() for s in candidate_skills}
+        cand_skill_set = {
+            (s.get("skill_name") or s.get("name") or str(s)).lower()
+            if isinstance(s, dict)
+            else (getattr(s, "skill_name", str(s))).lower()
+            for s in candidate_skills
+        }
 
         # ── 1. Technical Skill Match (40 Points) ───────────────────
         mandatory_reqs = [r for r in job_reqs if r.get("category") == "mandatory"]
@@ -59,9 +91,9 @@ class MatchingEngine:
         if not mandatory_reqs and not preferred_reqs:
             mandatory_reqs = job_reqs
 
-        matched_skills: List[Dict[str, Any]] = []
-        missing_skills: List[str] = []
-        related_skills: List[str] = []
+        matched_skills: list[dict[str, Any]] = []
+        missing_skills: list[str] = []
+        related_skills: list[str] = []
 
         total_weights = (len(mandatory_reqs) * 2) + len(preferred_reqs)
         earned_skill_points = 0.0
@@ -70,26 +102,30 @@ class MatchingEngine:
             s_name = req.get("skill_name", "")
             s_lower = s_name.lower()
             if s_lower in cand_skill_set:
-                matched_skills.append({
-                    "skill": s_name,
-                    "type": "exact",
-                    "evidence": f"Explicitly listed in verified technical competencies",
-                    "confidence": 0.98,
-                    "category": "mandatory"
-                })
+                matched_skills.append(
+                    {
+                        "skill": s_name,
+                        "type": "exact",
+                        "evidence": "Explicitly listed in verified technical competencies",
+                        "confidence": 0.98,
+                        "category": "mandatory",
+                    }
+                )
                 earned_skill_points += 2.0
             else:
                 # Check semantic / substring partial match
                 is_partial = any(s_lower in c or c in s_lower for c in cand_skill_set)
                 if is_partial:
                     related_skills.append(s_name)
-                    matched_skills.append({
-                        "skill": s_name,
-                        "type": "related",
-                        "evidence": f"Related competency identified in candidate skill profile",
-                        "confidence": 0.75,
-                        "category": "mandatory"
-                    })
+                    matched_skills.append(
+                        {
+                            "skill": s_name,
+                            "type": "related",
+                            "evidence": "Related competency identified in candidate skill profile",
+                            "confidence": 0.75,
+                            "category": "mandatory",
+                        }
+                    )
                     earned_skill_points += 1.2
                 else:
                     missing_skills.append(s_name)
@@ -98,25 +134,29 @@ class MatchingEngine:
             s_name = req.get("skill_name", "")
             s_lower = s_name.lower()
             if s_lower in cand_skill_set:
-                matched_skills.append({
-                    "skill": s_name,
-                    "type": "exact",
-                    "evidence": f"Candidate possesses preferred qualification",
-                    "confidence": 0.95,
-                    "category": "preferred"
-                })
+                matched_skills.append(
+                    {
+                        "skill": s_name,
+                        "type": "exact",
+                        "evidence": "Candidate possesses preferred qualification",
+                        "confidence": 0.95,
+                        "category": "preferred",
+                    }
+                )
                 earned_skill_points += 1.0
             else:
                 is_partial = any(s_lower in c or c in s_lower for c in cand_skill_set)
                 if is_partial:
                     related_skills.append(s_name)
-                    matched_skills.append({
-                        "skill": s_name,
-                        "type": "related",
-                        "evidence": f"Related secondary skill identified",
-                        "confidence": 0.70,
-                        "category": "preferred"
-                    })
+                    matched_skills.append(
+                        {
+                            "skill": s_name,
+                            "type": "related",
+                            "evidence": "Related secondary skill identified",
+                            "confidence": 0.70,
+                            "category": "preferred",
+                        }
+                    )
                     earned_skill_points += 0.6
                 else:
                     missing_skills.append(f"{s_name} (preferred)")
@@ -128,9 +168,14 @@ class MatchingEngine:
 
         # ── 2. Semantic Similarity (30 Points) ─────────────────────
         # Construct summary of job requirements vs candidate profile text (excluding sensitive personal details like name)
+        skills_str = ", ".join(
+            s if isinstance(s, str) else (s.get("skill_name") or s.get("name") or str(s)) for s in candidate_skills
+        )
         job_semantic_target = f"{job_title}. {job_description[:800]}"
-        cand_semantic_doc = f"Candidate Profile. Experience: {cand_exp_years} years. Skills: {', '.join(candidate_skills)}. {resume_text[:1200]}"
-        
+        cand_semantic_doc = (
+            f"Candidate Profile. Experience: {cand_exp_years} years. Skills: {skills_str}. {resume_text[:1200]}"
+        )
+
         raw_similarity = self.embedding_service.compute_similarity(job_semantic_target, cand_semantic_doc)
         semantic_score = round(min(30.0, raw_similarity * 30.0), 1)
 
@@ -154,7 +199,9 @@ class MatchingEngine:
             edu_score = 10.0
         elif "master" in cand_edu_text or "m.s" in cand_edu_text or "m.tech" in cand_edu_text or "mba" in cand_edu_text:
             edu_score = 10.0 if "master" in education_req else 9.5
-        elif "bachelor" in cand_edu_text or "b.s" in cand_edu_text or "b.tech" in cand_edu_text or "b.e" in cand_edu_text:
+        elif (
+            "bachelor" in cand_edu_text or "b.s" in cand_edu_text or "b.tech" in cand_edu_text or "b.e" in cand_edu_text
+        ):
             edu_score = 10.0 if "bachelor" in education_req else 8.5
         elif cand_edu_list:
             edu_score = 7.5
@@ -169,7 +216,9 @@ class MatchingEngine:
         if tech_score >= 30.0:
             strengths.append(f"Strong technical alignment with {len(matched_skills)} verified required skills.")
         if cand_exp_years >= min_experience:
-            strengths.append(f"Exceeds minimum experience requirement ({cand_exp_years} yrs vs {min_experience} yrs required).")
+            strengths.append(
+                f"Exceeds minimum experience requirement ({cand_exp_years} yrs vs {min_experience} yrs required)."
+            )
         if semantic_score >= 22.0:
             strengths.append("High contextual and domain semantic similarity with the job description.")
         if edu_score >= 9.0:
@@ -202,7 +251,7 @@ class MatchingEngine:
                 "earned_weight": round(earned_skill_points, 2),
                 "total_weights": total_weights,
                 "matched_count": len(matched_skills),
-                "missing_count": len(missing_skills)
+                "missing_count": len(missing_skills),
             },
             "semantic_breakdown": {
                 "score": semantic_score,
@@ -210,21 +259,26 @@ class MatchingEngine:
                 "cosine_similarity": round(raw_similarity, 4),
                 "model": model_info["model_name"],
                 "engine": model_info["engine"],
-                "status": model_info["status"]
+                "status": model_info["status"],
             },
             "experience_breakdown": {
                 "score": exp_score,
                 "max": 20.0,
                 "candidate_years": cand_exp_years,
                 "required_years": min_experience,
-                "status": "Meets requirement" if cand_exp_years >= min_experience else "Below minimum"
+                "status": "Meets requirement" if cand_exp_years >= min_experience else "Below minimum",
             },
             "education_breakdown": {
                 "score": edu_score,
                 "max": 10.0,
                 "required": education_req,
-                "candidate_education": [e.get("degree", "Degree") for e in cand_edu_list] if cand_edu_list else ["Not specified"]
-            }
+                "candidate_education": [
+                    e.get("degree", str(e)) if isinstance(e, dict) else str(e)
+                    for e in (cand_edu_list if isinstance(cand_edu_list, list) else [cand_edu_list])
+                ]
+                if cand_edu_list
+                else ["Not specified"],
+            },
         }
 
         return {
@@ -239,5 +293,5 @@ class MatchingEngine:
             "strengths": strengths,
             "skill_gaps": skill_gaps,
             "explanation": explanation,
-            "model_info": model_info
+            "model_info": model_info,
         }

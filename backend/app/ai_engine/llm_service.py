@@ -1,11 +1,48 @@
-import os
 import json
 import logging
-from typing import List, Dict, Any, Optional
+import os
+from typing import Any
+
 import httpx
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+ADVERSARIAL_INJECTION_PATTERNS = [
+    "ignore previous instructions",
+    "disregard all prior instructions",
+    "system prompt override",
+    "bypass safety filters",
+    "reveal secret key",
+    "print your system instructions",
+    "jailbreak",
+    "act as an unrestricted ai",
+]
+
+
+def sanitize_user_input(text: str) -> str:
+    """Sanitize and guard user/document prompt against prompt injection and delimiters."""
+    if not text:
+        return ""
+    clean = text
+    lowered = clean.lower()
+    for pattern in ADVERSARIAL_INJECTION_PATTERNS:
+        if pattern in lowered:
+            logger.warning(f"Prompt injection attempt detected and neutralized: '{pattern}'")
+            # Replace pattern case-insensitively
+            idx = lowered.find(pattern)
+            while idx != -1:
+                clean = clean[:idx] + "[REDACTED_ADVERSARIAL_INPUT]" + clean[idx + len(pattern) :]
+                lowered = clean.lower()
+                idx = lowered.find(pattern)
+    return clean.strip()
+
+
+def fence_document_context(document_text: str, label: str = "CANDIDATE_DOCUMENT") -> str:
+    """Enclose untrusted document or resume text in strict delimiter fences to prevent prompt hijacking."""
+    clean = sanitize_user_input(document_text)
+    return f"<<<BEGIN_{label}>>>\n{clean}\n<<<END_{label}>>>"
 
 
 class LLMService:
@@ -23,7 +60,9 @@ class LLMService:
     def is_available(self) -> bool:
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return False
-        return bool(self.enabled and self.api_key and self.api_key.strip() and self.api_key.strip() != "PASTE_YOUR_API_KEY_HERE")
+        return bool(
+            self.enabled and self.api_key and self.api_key.strip() and self.api_key.strip() != "PASTE_YOUR_API_KEY_HERE"
+        )
 
     def _detect_provider(self) -> str:
         key = (self.api_key or "").strip()
@@ -36,7 +75,7 @@ class LLMService:
             return "openai"
         return "gemini"
 
-    def _candidate_gemini_models(self) -> List[str]:
+    def _candidate_gemini_models(self) -> list[str]:
         primary = self.model.replace("models/", "")
         fallbacks = ["gemini-2.5-flash"]
         models = [primary]
@@ -46,47 +85,40 @@ class LLMService:
         return models
 
     def generate_chat_response(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: str,
-        max_tokens: int = 1500
-    ) -> Optional[str]:
+        self, messages: list[dict[str, str]], system_prompt: str, max_tokens: int = 1500
+    ) -> str | None:
         """Generate conversational markdown response from messages."""
         if not self.is_available():
             return None
 
+        # Sanitize messages against prompt injection attempts
+        safe_messages = [
+            {"role": m.get("role", "user"), "content": sanitize_user_input(m.get("content", ""))} for m in messages
+        ]
+
         provider = self._detect_provider()
         if provider == "gemini":
-            return self._call_gemini_chat(messages, system_prompt, max_tokens)
+            return self._call_gemini_chat(safe_messages, system_prompt, max_tokens)
         elif provider == "groq":
-            return self._call_openai_chat(messages, system_prompt, "https://api.groq.com/openai/v1/chat/completions", max_tokens)
+            return self._call_openai_chat(
+                safe_messages, system_prompt, "https://api.groq.com/openai/v1/chat/completions", max_tokens
+            )
         else:
-            return self._call_openai_chat(messages, system_prompt, "https://api.openai.com/v1/chat/completions", max_tokens)
+            return self._call_openai_chat(
+                safe_messages, system_prompt, "https://api.openai.com/v1/chat/completions", max_tokens
+            )
 
-    def _call_gemini_chat(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: str,
-        max_tokens: int
-    ) -> Optional[str]:
+    def _call_gemini_chat(self, messages: list[dict[str, str]], system_prompt: str, max_tokens: int) -> str | None:
         """Send chat messages to Gemini API with model fallback on rate-limits."""
         contents = []
         for msg in messages:
             role = "user" if msg.get("role") == "user" else "model"
-            contents.append({
-                "role": role,
-                "parts": [{"text": msg.get("content", "")}]
-            })
+            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
 
         payload = {
-            "systemInstruction": {
-                "parts": [{"text": system_prompt}]
-            },
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": contents,
-            "generationConfig": {
-                "temperature": 0.35,
-                "maxOutputTokens": max_tokens
-            }
+            "generationConfig": {"temperature": 0.35, "maxOutputTokens": max_tokens},
         }
 
         for model_name in self._candidate_gemini_models():
@@ -99,10 +131,14 @@ class LLMService:
                         candidates = data.get("candidates", [])
                         if candidates:
                             parts = candidates[0].get("content", {}).get("parts", [])
-                            text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought", False)]
+                            text_parts = [
+                                p.get("text", "") for p in parts if "text" in p and not p.get("thought", False)
+                            ]
                             return "".join(text_parts).strip() if text_parts else parts[0].get("text", "").strip()
                     elif resp.status_code in (400, 401, 403):
-                        logger.warning(f"Gemini API authentication/key rejected ({resp.status_code}): {resp.text[:150]}. Breaking to fallback.")
+                        logger.warning(
+                            f"Gemini API authentication/key rejected ({resp.status_code}): {resp.text[:150]}. Breaking to fallback."
+                        )
                         break
                     elif resp.status_code == 429:
                         logger.warning(f"Model {model_name} rate limited (429). Attempting fallback...")
@@ -115,30 +151,15 @@ class LLMService:
         return None
 
     def _call_openai_chat(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: str,
-        base_url: str,
-        max_tokens: int
-    ) -> Optional[str]:
+        self, messages: list[dict[str, str]], system_prompt: str, base_url: str, max_tokens: int
+    ) -> str | None:
         """Send chat messages to OpenAI or Groq endpoint."""
         api_messages = [{"role": "system", "content": system_prompt}]
         for msg in messages:
-            api_messages.append({
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", "")
-            })
+            api_messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key.strip()}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.model,
-            "messages": api_messages,
-            "temperature": 0.35,
-            "max_tokens": max_tokens
-        }
+        headers = {"Authorization": f"Bearer {self.api_key.strip()}", "Content-Type": "application/json"}
+        payload = {"model": self.model, "messages": api_messages, "temperature": 0.35, "max_tokens": max_tokens}
 
         try:
             with httpx.Client(timeout=25.0) as client:
@@ -152,7 +173,7 @@ class LLMService:
             logger.error(f"Error calling OpenAI/Groq: {e}")
         return None
 
-    def generate_json(self, prompt: str) -> Optional[Dict[str, Any]]:
+    def generate_json(self, prompt: str) -> dict[str, Any] | None:
         """Dispatch prompt to configured provider and parse JSON output."""
         if not self.is_available():
             return None
@@ -168,8 +189,8 @@ class LLMService:
                     "generationConfig": {
                         "temperature": 0.3,
                         "maxOutputTokens": 4096,
-                        "responseMimeType": "application/json"
-                    }
+                        "responseMimeType": "application/json",
+                    },
                 }
                 try:
                     with httpx.Client(timeout=8.0) as client:
@@ -179,11 +200,17 @@ class LLMService:
                             candidates = data.get("candidates", [])
                             if candidates:
                                 parts = candidates[0].get("content", {}).get("parts", [])
-                                text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought", False)]
-                                raw_text = "".join(text_parts).strip() if text_parts else parts[0].get("text", "").strip()
+                                text_parts = [
+                                    p.get("text", "") for p in parts if "text" in p and not p.get("thought", False)
+                                ]
+                                raw_text = (
+                                    "".join(text_parts).strip() if text_parts else parts[0].get("text", "").strip()
+                                )
                                 break
                         elif resp.status_code in (400, 401, 403):
-                            logger.warning(f"Gemini API key rejected in JSON generation ({resp.status_code}). Breaking to fallback.")
+                            logger.warning(
+                                f"Gemini API key rejected in JSON generation ({resp.status_code}). Breaking to fallback."
+                            )
                             break
                         elif resp.status_code == 429:
                             logger.warning(f"JSON generation on {model_name} rate-limited. Trying fallback...")
@@ -193,20 +220,24 @@ class LLMService:
                 except Exception as e:
                     logger.error(f"Error calling Gemini {model_name}: {e}")
         else:
-            base_url = "https://api.groq.com/openai/v1/chat/completions" if provider == "groq" else "https://api.openai.com/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {self.api_key.strip()}",
-                "Content-Type": "application/json"
-            }
+            base_url = (
+                "https://api.groq.com/openai/v1/chat/completions"
+                if provider == "groq"
+                else "https://api.openai.com/v1/chat/completions"
+            )
+            headers = {"Authorization": f"Bearer {self.api_key.strip()}", "Content-Type": "application/json"}
             payload = {
                 "model": self.model,
                 "messages": [
-                    {"role": "system", "content": "You are an expert technical recruiter assistant. Always respond in valid JSON format."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "You are an expert technical recruiter assistant. Always respond in valid JSON format.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.3,
                 "max_tokens": 1024,
-                "response_format": {"type": "json_object"}
+                "response_format": {"type": "json_object"},
             }
             try:
                 with httpx.Client(timeout=25.0) as client:
@@ -236,11 +267,11 @@ class LLMService:
     def generate_interview_questions(
         self,
         job_title: str,
-        matched_skills: List[str],
-        missing_skills: List[str],
+        matched_skills: list[str],
+        missing_skills: list[str],
         experience_years: float,
-        candidate_projects: List[Dict[str, Any]]
-    ) -> Optional[List[Dict[str, Any]]]:
+        candidate_projects: list[dict[str, Any]],
+    ) -> list[dict[str, Any]] | None:
         """Generate tailored interview questions via LLM."""
         if not self.is_available():
             return None
@@ -250,9 +281,9 @@ You are an executive technical interviewer. Generate 4 structured, highly specif
 
 Candidate Profile:
 - Total Experience: {experience_years} years
-- Matched Core Skills: {', '.join(matched_skills[:6]) if matched_skills else 'General technical skills'}
-- Missing / Unverified Skills from Job: {', '.join(missing_skills[:4]) if missing_skills else 'None'}
-- Projects Summary: {json.dumps(candidate_projects[:2]) if candidate_projects else 'Standard engineering projects'}
+- Matched Core Skills: {", ".join(matched_skills[:6]) if matched_skills else "General technical skills"}
+- Missing / Unverified Skills from Job: {", ".join(missing_skills[:4]) if missing_skills else "None"}
+- Projects Summary: {json.dumps(candidate_projects[:2]) if candidate_projects else "Standard engineering projects"}
 
 Return a JSON object with this exact structure:
 {{
@@ -299,11 +330,11 @@ Return a JSON object with this exact structure:
         self,
         candidate_name: str,
         overall_score: float,
-        matched_skills: List[Dict[str, Any]],
-        missing_skills: List[str],
+        matched_skills: list[dict[str, Any]],
+        missing_skills: list[str],
         experience_years: float,
-        min_experience_required: float
-    ) -> Optional[Dict[str, Any]]:
+        min_experience_required: float,
+    ) -> dict[str, Any] | None:
         """Generate structured recruiter insights & checklist via LLM."""
         if not self.is_available():
             return None
@@ -319,8 +350,8 @@ Candidate Match Data:
 - Candidate Name: {candidate_name}
 - Overall Match Score: {overall_score}/100
 - Recorded Experience: {experience_years} years
-- Aligned Skills: {', '.join(matched_names[:8])}
-- Missing / Gap Skills: {', '.join(missing_skills[:6]) if missing_skills else 'None'}
+- Aligned Skills: {", ".join(matched_names[:8])}
+- Missing / Gap Skills: {", ".join(missing_skills[:6]) if missing_skills else "None"}
 
 Return a JSON object with this exact schema:
 {{
