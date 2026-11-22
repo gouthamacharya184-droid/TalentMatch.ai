@@ -1,13 +1,35 @@
 import os
 import sys
+import traceback
 
-# Ensure backend directory is in sys.path
-backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+# Setup python path for backend
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+backend_dir = os.path.join(root_dir, "backend")
 
-# Set PYTHONPATH environment variable if not already present
+for path in (backend_dir, root_dir, current_dir):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 os.environ.setdefault("PYTHONPATH", backend_dir)
 
-# Import the FastAPI application instance
-from app.main import app
+try:
+    from app.main import app
+except Exception as e:
+    err_tb = traceback.format_exc()
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
+
+    app = FastAPI(title="TalentMatch AI - Diagnostic")
+
+    @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
+    async def fallback_handler(path: str):
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "FastAPI Initialization Failed on Vercel",
+                "detail": str(e),
+                "traceback": err_tb,
+                "root_dir_contents": os.listdir(root_dir) if os.path.exists(root_dir) else []
+            }
+        )

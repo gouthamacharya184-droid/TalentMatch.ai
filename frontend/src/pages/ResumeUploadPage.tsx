@@ -402,7 +402,7 @@ export const ResumeUploadPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
             <span className="font-medium">
-              Backend API is currently offline. Start the backend server (http://localhost:8000) to process resumes.
+              Backend API is currently unreachable. Operating in preview mode.
             </span>
           </div>
           <button

@@ -8,7 +8,7 @@
     "api/**/*.py": {
       "maxDuration": 60,
       "memory": 1024,
-      "excludeFiles": "{frontend/**,node_modules/**,storage/**,sample_resumes/**,test_resumes*/**,backups/**,screenshots/**,*.md,*.db,*.sqlite3,*.bak}"
+      "includeFiles": "backend/**"
     }
   },
   "rewrites": [

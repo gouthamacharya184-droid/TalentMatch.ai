@@ -34,17 +34,19 @@ logger = logging.getLogger("talentmatch")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables and seed
+    # Startup: create tables and seed safely
     logger.info("Initializing TalentMatch AI Database schema...")
-    Base.metadata.create_all(bind=engine)
-    
-    db = SessionLocal()
     try:
-        seed_database(db)
+        Base.metadata.create_all(bind=engine)
     except Exception as e:
-        logger.error(f"Error seeding database: {e}")
-    finally:
+        logger.warning(f"Error creating database tables on startup: {e}")
+    
+    try:
+        db = SessionLocal()
+        seed_database(db)
         db.close()
+    except Exception as e:
+        logger.warning(f"Error seeding database: {e}")
     
     logger.info("TalentMatch AI backend started successfully.")
     yield
@@ -135,11 +137,22 @@ async def parse_job_description_endpoint(file: UploadFile = File(...)):
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
+    db_status = "connected"
+    try:
+        from sqlalchemy import text
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception as e:
+        db_status = f"disconnected: {str(e)}"
+
+    is_prod = bool(os.environ.get("VERCEL"))
     return {
-        "status": "healthy",
+        "status": "healthy" if db_status == "connected" else "degraded",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "database": "connected"
+        "environment": "production" if is_prod else "development",
+        "database": db_status
     }
 
 
