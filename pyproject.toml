@@ -1,0 +1,39 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [
+    ".git",
+    ".pytest_cache",
+    "backend/venv",
+    "node_modules",
+    "frontend",
+    "dist",
+    "storage",
+    "backups",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+]
+ignore = [
+    "E501",   # line-too-long (handled by formatter)
+    "E712",   # Avoid equality comparisons to True/False (required for SQLAlchemy column expressions)
+    "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+    "B904",   # raise ... from err
+    "UP007",  # X | Y union syntax in older typing contexts
+    "UP006",  # list vs List
+    "UP035",  # typing imports
+    "UP046",  # Generic type parameters in Pydantic models
+    "F403",   # wildcard star imports in schemas init
+    "F405",   # undefined name from star import
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "api"]
