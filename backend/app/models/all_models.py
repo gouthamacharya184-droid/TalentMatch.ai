@@ -1,17 +1,19 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy import (
-    Column,
-    String,
-    Integer,
-    Float,
-    Boolean,
-    Text,
-    DateTime,
-    ForeignKey,
     JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
+
 from app.database.session import Base
 
 
@@ -20,7 +22,7 @@ def generate_uuid() -> str:
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class User(Base):
@@ -50,6 +52,7 @@ class Campaign(Base):
     Recruitment Campaign entity grouping multiple job openings, candidate pools,
     target headcount, and overall hiring velocity.
     """
+
     __tablename__ = "campaigns"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
@@ -83,7 +86,9 @@ class Job(Base):
     education_req = Column(String(255), default="Bachelor's Degree")
     description = Column(Text, nullable=False)
     extracted_requirements = Column(JSON, nullable=True)
-    scoring_weights = Column(JSON, nullable=True)  # Custom weights: required_skills, projects, experience, preferred_skills, education
+    scoring_weights = Column(
+        JSON, nullable=True
+    )  # Custom weights: required_skills, projects, experience, preferred_skills, education
     criteria_approved = Column(Boolean, default=False)  # Recruiter review & approval checkpoint
     criteria_approved_at = Column(DateTime, nullable=True)
     status = Column(String(50), default="active", index=True)  # active, closed, draft
@@ -128,7 +133,9 @@ class Candidate(Base):
     projects = Column(JSON, nullable=True)  # Structured project portfolio with tech stack & achievements
     certifications = Column(JSON, nullable=True)  # Verified certifications
     extracted_profile = Column(JSON, nullable=True)
-    status = Column(String(50), default="new", index=True)  # new, analyzed, shortlisted, under_review, interview, rejected, hired
+    status = Column(
+        String(50), default="new", index=True
+    )  # new, analyzed, shortlisted, under_review, interview, rejected, hired
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -160,7 +167,9 @@ class Resume(Base):
     __tablename__ = "resumes"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    candidate_id = Column(String(36), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    candidate_id = Column(
+        String(36), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
     original_filename = Column(String(255), nullable=False)
     stored_filename = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)
@@ -170,7 +179,9 @@ class Resume(Base):
     content_hash = Column(String(64), nullable=True, index=True)  # SHA-256 hash for idempotent bulk upload
     raw_text = Column(Text, nullable=True)
     page_texts = Column(JSON, nullable=True)  # Text mapped per page: {"1": "...", "2": "..."}
-    processing_status = Column(String(50), default="uploaded", index=True)  # uploaded, queued, parsing, evaluated, completed, failed
+    processing_status = Column(
+        String(50), default="uploaded", index=True
+    )  # uploaded, queued, parsing, evaluated, completed, failed
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
@@ -184,6 +195,7 @@ class EvaluationRun(Base):
     Enables recruiters to track historical evaluations, re-evaluate with updated
     criteria, and conduct What-If comparisons.
     """
+
     __tablename__ = "evaluation_runs"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
@@ -209,28 +221,30 @@ class MatchingAnalysis(Base):
     job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
     candidate_id = Column(String(36), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    evaluation_run_id = Column(String(36), ForeignKey("evaluation_runs.id", ondelete="SET NULL"), nullable=True, index=True)
-    
+    evaluation_run_id = Column(
+        String(36), ForeignKey("evaluation_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # 0-100 Transparent Scoring components
     overall_score = Column(Float, nullable=False, default=0.0, index=True)
-    technical_score = Column(Float, nullable=False, default=0.0)   # Required skills component
-    projects_score = Column(Float, nullable=False, default=0.0)    # Relevant projects component
+    technical_score = Column(Float, nullable=False, default=0.0)  # Required skills component
+    projects_score = Column(Float, nullable=False, default=0.0)  # Relevant projects component
     experience_score = Column(Float, nullable=False, default=0.0)  # Professional tenure component
-    preferred_score = Column(Float, nullable=False, default=0.0)   # Preferred/bonus skills component
-    education_score = Column(Float, nullable=False, default=0.0)   # Education & certifications component
-    semantic_score = Column(Float, nullable=False, default=0.0)    # Dense semantic cosine alignment
-    
+    preferred_score = Column(Float, nullable=False, default=0.0)  # Preferred/bonus skills component
+    education_score = Column(Float, nullable=False, default=0.0)  # Education & certifications component
+    semantic_score = Column(Float, nullable=False, default=0.0)  # Dense semantic cosine alignment
+
     weights_used = Column(JSON, nullable=True)  # Snapshot of weights applied
     confidence_score = Column(Float, default=0.90)  # AI extraction confidence (0.0 to 1.0)
     uncertainty_notes = Column(Text, nullable=True)  # Notes on unverified claims or sparse data
-    
+
     explanation = Column(JSON, nullable=True)
     strengths = Column(JSON, default=list)
     skill_gaps = Column(JSON, default=list)
     matched_skills = Column(JSON, default=list)  # [{skill, type, evidence, confidence, source_page}]
     missing_skills = Column(JSON, default=list)  # List of strings
     related_skills = Column(JSON, default=list)  # List of strings
-    
+
     created_at = Column(DateTime, default=utc_now, index=True)
 
     job = relationship("Job", back_populates="analyses")
@@ -260,20 +274,23 @@ class EvidenceReference(Base):
     Direct document evidence link connecting an evaluated criterion to an exact
     text quote, page number, and evidence strength classification in the original resume.
     """
+
     __tablename__ = "evidence_references"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     candidate_id = Column(String(36), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
     resume_id = Column(String(36), ForeignKey("resumes.id", ondelete="CASCADE"), nullable=True, index=True)
     job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=True, index=True)
-    
+
     criterion = Column(String(255), nullable=False, index=True)
     criterion_type = Column(String(50), default="skill")  # skill, project, experience, education
     snippet = Column(Text, nullable=False)
     page_number = Column(Integer, default=1)
     character_offset = Column(Integer, nullable=True)
     confidence = Column(Float, default=1.0)
-    evidence_classification = Column(String(50), default="explicit")  # explicit, project, professional, inferred, not_found, unverified
+    evidence_classification = Column(
+        String(50), default="explicit"
+    )  # explicit, project, professional, inferred, not_found, unverified
     created_at = Column(DateTime, default=utc_now)
 
     candidate = relationship("Candidate", back_populates="evidence_items")
@@ -285,14 +302,17 @@ class InterviewKit(Base):
     Personalized interview kit generated for a candidate against a job description,
     with structured technical, coding, project, and claim-verification rubrics.
     """
+
     __tablename__ = "interview_kits"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     candidate_id = Column(String(36), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
     job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    
-    questions = Column(JSON, nullable=False)  # List of {id, category, question, rationale, expected_answer, rubric_levels, follow_ups}
+
+    questions = Column(
+        JSON, nullable=False
+    )  # List of {id, category, question, rationale, expected_answer, rubric_levels, follow_ups}
     rubric_guidelines = Column(JSON, nullable=True)
     evaluation_notes = Column(Text, nullable=True)
     status = Column(String(50), default="draft")  # draft, ready, completed
@@ -367,6 +387,7 @@ class AgentExecution(Base):
     Real agent observability record: tracks every agent invocation, execution latency,
     token consumption, model used, and outcome status without simulated metrics.
     """
+
     __tablename__ = "agent_executions"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
@@ -375,7 +396,7 @@ class AgentExecution(Base):
     target_entity_type = Column(String(50), nullable=True)  # "job", "candidate", "batch"
     target_entity_id = Column(String(36), nullable=True)
     status = Column(String(50), default="running", index=True)  # running, completed, failed, fallback
-    
+
     duration_ms = Column(Integer, default=0)
     tokens_used = Column(Integer, default=0)
     model_used = Column(String(100), nullable=True)
@@ -383,3 +404,18 @@ class AgentExecution(Base):
     output_summary = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utc_now, index=True)
+
+
+class RevokedToken(Base):
+    """
+    Stateless JWT Blocklist: persists invalidated tokens (logouts, password resets)
+    so revocations survive across horizontal workers, restarts, and serverless cold starts.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    token = Column(String(500), unique=True, nullable=False, index=True)
+    reason = Column(String(100), default="logout")
+    created_at = Column(DateTime, default=utc_now, index=True)
+    expires_at = Column(DateTime, nullable=True)

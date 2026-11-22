@@ -1,22 +1,21 @@
-import os
 import logging
+import os
+
 from sqlalchemy.orm import Session
+
 from app.core.security import hash_password, verify_password
 from app.models.all_models import (
-    User,
-    Job,
-    JobRequirement,
+    ActivityLog,
     Candidate,
     CandidateSkill,
-    Resume,
+    Job,
+    JobRequirement,
     MatchingAnalysis,
-    Shortlist,
     Notification,
-    ActivityLog
+    Resume,
+    Shortlist,
+    User,
 )
-from app.ai_engine.matching_engine import MatchingEngine
-from app.ai_engine.interview_questions import InterviewQuestionGenerator
-from app.ai_engine.insights import CandidateInsights
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ STANDARD_JOBS = [
             ("PyTorch", "preferred", "ai_ml"),
             ("Docker", "preferred", "cloud_devops"),
             ("Git", "preferred", "tools_and_practices"),
-        ]
+        ],
     },
     {
         "id": "00000000-0000-0000-0000-000000000102",
@@ -66,7 +65,7 @@ STANDARD_JOBS = [
             ("Docker", "preferred", "cloud_devops"),
             ("SQL", "preferred", "database"),
             ("FastAPI", "preferred", "backend_frameworks"),
-        ]
+        ],
     },
     {
         "id": "00000000-0000-0000-0000-000000000103",
@@ -88,7 +87,7 @@ STANDARD_JOBS = [
             ("Redis", "preferred", "database"),
             ("Unit Testing", "preferred", "tools_and_practices"),
             ("Linux", "preferred", "cloud_devops"),
-        ]
+        ],
     },
     {
         "id": "00000000-0000-0000-0000-000000000104",
@@ -110,7 +109,7 @@ STANDARD_JOBS = [
             ("Bash", "preferred", "tools_and_practices"),
             ("Prometheus", "preferred", "tools_and_practices"),
             ("Git", "preferred", "tools_and_practices"),
-        ]
+        ],
     },
     {
         "id": "00000000-0000-0000-0000-000000000105",
@@ -132,7 +131,7 @@ STANDARD_JOBS = [
             ("Linux", "preferred", "cloud_devops"),
             ("SIEM", "preferred", "tools_and_practices"),
             ("Encryption", "preferred", "technical"),
-        ]
+        ],
     },
     {
         "id": "00000000-0000-0000-0000-000000000106",
@@ -154,7 +153,7 @@ STANDARD_JOBS = [
             ("AWS", "preferred", "cloud_devops"),
             ("Tailwind CSS", "preferred", "frontend_frameworks"),
             ("Redis", "preferred", "database"),
-        ]
+        ],
     },
 ]
 
@@ -176,7 +175,7 @@ def seed_database(db: Session, fast_mode: bool = False):
             hashed_password=hash_password("Admin@123456"),
             full_name="Alex Mercer (Super Admin)",
             role="super_admin",
-            is_active=True
+            is_active=True,
         )
         db.add(admin)
     else:
@@ -193,7 +192,7 @@ def seed_database(db: Session, fast_mode: bool = False):
             hashed_password=hash_password("Recruiter@123456"),
             full_name="Sarah Jenkins (Senior Recruiter)",
             role="recruiter",
-            is_active=True
+            is_active=True,
         )
         db.add(recruiter)
     else:
@@ -205,9 +204,7 @@ def seed_database(db: Session, fast_mode: bool = False):
 
     # 2. Ensure all standard job requisitions exist
     for jdata in STANDARD_JOBS:
-        existing_job = db.query(Job).filter(
-            (Job.id == jdata["id"]) | (Job.title == jdata["title"])
-        ).first()
+        existing_job = db.query(Job).filter((Job.id == jdata["id"]) | (Job.title == jdata["title"])).first()
         if not existing_job:
             job_obj = Job(
                 id=jdata["id"],
@@ -219,17 +216,12 @@ def seed_database(db: Session, fast_mode: bool = False):
                 min_experience=jdata["min_experience"],
                 education_req=jdata["education_req"],
                 description=jdata["description"],
-                status="active"
+                status="active",
             )
             db.add(job_obj)
             db.flush()
             for skill_name, cat, stype in jdata["requirements"]:
-                db.add(JobRequirement(
-                    job_id=job_obj.id,
-                    skill_name=skill_name,
-                    category=cat,
-                    skill_type=stype
-                ))
+                db.add(JobRequirement(job_id=job_obj.id, skill_name=skill_name, category=cat, skill_type=stype))
     db.commit()
 
     # In fast mode (serverless cold start), only seed demo users and standard jobs.
@@ -255,7 +247,7 @@ The ideal candidate will have strong expertise in Python (FastAPI or Django) for
 Experience with PostgreSQL database modeling, query optimization, Docker containerization, and AWS cloud deployment is essential.
 Familiarity with CI/CD automation, unit testing, and agile collaboration is required.
 Preferred skills include Redis caching, Tailwind CSS, and microservice architectures.""",
-            status="active"
+            status="active",
         )
         db.add(job1)
         db.commit()
@@ -276,7 +268,7 @@ Preferred skills include Redis caching, Tailwind CSS, and microservice architect
 Requirements: In-depth Python proficiency, deep learning architectures (PyTorch or TensorFlow), Hugging Face Transformers, Sentence Transformers, and spaCy.
 Hands-on experience with vector databases (Pinecone, Milvus or ChromaDB), RAG architectures, Scikit-learn, and MLOps pipelines (Docker, MLflow).
 Strong grasp of cosine similarity metrics, statistical testing, and scalable model serving under FastAPI.""",
-            status="active"
+            status="active",
         )
         db.add(job2)
         db.commit()
@@ -328,8 +320,20 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "location": "San Francisco, CA",
             "years": 6.5,
             "education": [{"degree": "B.S. in Computer Science", "institution": "UC Berkeley", "year": "2018"}],
-            "skills": ["Python", "FastAPI", "React", "TypeScript", "PostgreSQL", "Docker", "AWS", "REST API", "Redis", "Tailwind CSS", "Git"],
-            "bio": "Senior Full-Stack Developer with 6+ years designing scalable microservices with FastAPI and dynamic frontends with React and TypeScript. Heavy cloud deployment on AWS ECS."
+            "skills": [
+                "Python",
+                "FastAPI",
+                "React",
+                "TypeScript",
+                "PostgreSQL",
+                "Docker",
+                "AWS",
+                "REST API",
+                "Redis",
+                "Tailwind CSS",
+                "Git",
+            ],
+            "bio": "Senior Full-Stack Developer with 6+ years designing scalable microservices with FastAPI and dynamic frontends with React and TypeScript. Heavy cloud deployment on AWS ECS.",
         },
         {
             "name": "Elena Rostova",
@@ -337,9 +341,23 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "phone": "+1 (206) 555-0192",
             "location": "Seattle, WA",
             "years": 5.0,
-            "education": [{"degree": "M.S. in Artificial Intelligence", "institution": "University of Washington", "year": "2019"}],
-            "skills": ["Python", "PyTorch", "NLP", "Machine Learning", "Sentence Transformers", "FastAPI", "Scikit-learn", "Docker", "Hugging Face", "spaCy", "Git"],
-            "bio": "NLP and Applied AI Engineer with 5 years experience creating semantic retrieval pipelines, transformers model fine-tuning, and production model serving."
+            "education": [
+                {"degree": "M.S. in Artificial Intelligence", "institution": "University of Washington", "year": "2019"}
+            ],
+            "skills": [
+                "Python",
+                "PyTorch",
+                "NLP",
+                "Machine Learning",
+                "Sentence Transformers",
+                "FastAPI",
+                "Scikit-learn",
+                "Docker",
+                "Hugging Face",
+                "spaCy",
+                "Git",
+            ],
+            "bio": "NLP and Applied AI Engineer with 5 years experience creating semantic retrieval pipelines, transformers model fine-tuning, and production model serving.",
         },
         {
             "name": "David Chen",
@@ -349,7 +367,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "years": 4.5,
             "education": [{"degree": "B.Tech in Information Technology", "institution": "UT Austin", "year": "2020"}],
             "skills": ["Python", "FastAPI", "React", "PostgreSQL", "Docker", "REST API", "Git", "Tailwind CSS"],
-            "bio": "Full-Stack Software Engineer proficient in building responsive React applications and performant Python/FastAPI backend APIs. Strong database optimization."
+            "bio": "Full-Stack Software Engineer proficient in building responsive React applications and performant Python/FastAPI backend APIs. Strong database optimization.",
         },
         {
             "name": "Priya Sharma",
@@ -358,8 +376,20 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "location": "San Jose, CA",
             "years": 7.0,
             "education": [{"degree": "M.S. in Computer Science", "institution": "Stanford University", "year": "2017"}],
-            "skills": ["Python", "PyTorch", "TensorFlow", "NLP", "Machine Learning", "Sentence Transformers", "Scikit-learn", "Docker", "FastAPI", "Kubernetes", "RAG"],
-            "bio": "Principal AI Researcher and ML Engineer specializing in Large Language Models, semantic search embeddings, and scalable inference infrastructure."
+            "skills": [
+                "Python",
+                "PyTorch",
+                "TensorFlow",
+                "NLP",
+                "Machine Learning",
+                "Sentence Transformers",
+                "Scikit-learn",
+                "Docker",
+                "FastAPI",
+                "Kubernetes",
+                "RAG",
+            ],
+            "bio": "Principal AI Researcher and ML Engineer specializing in Large Language Models, semantic search embeddings, and scalable inference infrastructure.",
         },
         {
             "name": "Liam O'Connor",
@@ -367,9 +397,22 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "phone": "+1 (617) 932-1102",
             "location": "Boston, MA",
             "years": 3.5,
-            "education": [{"degree": "B.S. in Software Engineering", "institution": "Northeastern University", "year": "2021"}],
-            "skills": ["React", "TypeScript", "JavaScript", "HTML5", "CSS3", "Tailwind CSS", "Redux", "Node.js", "REST API", "Git"],
-            "bio": "Frontend specialist focused on React 19, TypeScript, and modern component systems. Moderate backend experience with Node.js and REST endpoints."
+            "education": [
+                {"degree": "B.S. in Software Engineering", "institution": "Northeastern University", "year": "2021"}
+            ],
+            "skills": [
+                "React",
+                "TypeScript",
+                "JavaScript",
+                "HTML5",
+                "CSS3",
+                "Tailwind CSS",
+                "Redux",
+                "Node.js",
+                "REST API",
+                "Git",
+            ],
+            "bio": "Frontend specialist focused on React 19, TypeScript, and modern component systems. Moderate backend experience with Node.js and REST endpoints.",
         },
         {
             "name": "Amina Al-Mansoor",
@@ -377,9 +420,27 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "phone": "+1 (312) 674-8891",
             "location": "Chicago, IL",
             "years": 5.5,
-            "education": [{"degree": "B.S. in Computer Engineering", "institution": "University of Illinois Urbana-Champaign", "year": "2019"}],
-            "skills": ["Python", "FastAPI", "Django", "PostgreSQL", "Docker", "AWS", "REST API", "Redis", "CI/CD", "Linux", "Git"],
-            "bio": "Backend Architect with extensive background in Python microservices, distributed caching with Redis, relational schemas in PostgreSQL, and Dockerized deployments."
+            "education": [
+                {
+                    "degree": "B.S. in Computer Engineering",
+                    "institution": "University of Illinois Urbana-Champaign",
+                    "year": "2019",
+                }
+            ],
+            "skills": [
+                "Python",
+                "FastAPI",
+                "Django",
+                "PostgreSQL",
+                "Docker",
+                "AWS",
+                "REST API",
+                "Redis",
+                "CI/CD",
+                "Linux",
+                "Git",
+            ],
+            "bio": "Backend Architect with extensive background in Python microservices, distributed caching with Redis, relational schemas in PostgreSQL, and Dockerized deployments.",
         },
         {
             "name": "Carlos Mendez",
@@ -389,7 +450,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "years": 4.0,
             "education": [{"degree": "B.S. in Information Systems", "institution": "CU Boulder", "year": "2020"}],
             "skills": ["Docker", "Kubernetes", "AWS", "CI/CD", "Linux", "Python", "Terraform", "Git", "GitHub Actions"],
-            "bio": "DevOps and Cloud Infrastructure Engineer. Expert in CI/CD pipeline automation, container orchestration, and Infrastructure as Code using Terraform."
+            "bio": "DevOps and Cloud Infrastructure Engineer. Expert in CI/CD pipeline automation, container orchestration, and Infrastructure as Code using Terraform.",
         },
         {
             "name": "Sofia Lindqvist",
@@ -399,7 +460,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "years": 3.0,
             "education": [{"degree": "M.S. in Data Science", "institution": "Columbia University", "year": "2021"}],
             "skills": ["Python", "Machine Learning", "Scikit-learn", "Pandas", "NumPy", "NLP", "FastAPI", "Git"],
-            "bio": "Data Scientist with focus on predictive modeling, exploratory analysis, and NLP text classification using Scikit-learn and Pandas."
+            "bio": "Data Scientist with focus on predictive modeling, exploratory analysis, and NLP text classification using Scikit-learn and Pandas.",
         },
         {
             "name": "Jordan Taylor",
@@ -409,7 +470,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "years": 1.5,
             "education": [{"degree": "B.S. in Computer Science", "institution": "Oregon State", "year": "2023"}],
             "skills": ["Python", "JavaScript", "React", "HTML", "CSS", "Git"],
-            "bio": "Junior Full-Stack Developer eager to grow in enterprise software development. Academic projects involving React web apps and Python scripts."
+            "bio": "Junior Full-Stack Developer eager to grow in enterprise software development. Academic projects involving React web apps and Python scripts.",
         },
         {
             "name": "Kavita Patel",
@@ -418,8 +479,21 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "location": "Raleigh, NC",
             "years": 8.0,
             "education": [{"degree": "B.S. in Computer Science", "institution": "NC State", "year": "2016"}],
-            "skills": ["Python", "FastAPI", "React", "TypeScript", "PostgreSQL", "Docker", "AWS", "REST API", "Microservices", "System Design", "Agile", "Git"],
-            "bio": "Staff Full-Stack Engineer with 8 years of enterprise application architecture. Proven leader in designing cloud-native microservices with FastAPI and modular React."
+            "skills": [
+                "Python",
+                "FastAPI",
+                "React",
+                "TypeScript",
+                "PostgreSQL",
+                "Docker",
+                "AWS",
+                "REST API",
+                "Microservices",
+                "System Design",
+                "Agile",
+                "Git",
+            ],
+            "bio": "Staff Full-Stack Engineer with 8 years of enterprise application architecture. Proven leader in designing cloud-native microservices with FastAPI and modular React.",
         },
         {
             "name": "Tariq Edwards",
@@ -428,8 +502,19 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "location": "Atlanta, GA",
             "years": 6.0,
             "education": [{"degree": "M.S. in Machine Learning", "institution": "Georgia Tech", "year": "2018"}],
-            "skills": ["Python", "PyTorch", "NLP", "Sentence Transformers", "Machine Learning", "FastAPI", "Docker", "Scikit-learn", "Hugging Face", "Vector Embeddings"],
-            "bio": "Senior NLP Engineer leading semantic search and information extraction systems for enterprise search catalogs using Transformer models."
+            "skills": [
+                "Python",
+                "PyTorch",
+                "NLP",
+                "Sentence Transformers",
+                "Machine Learning",
+                "FastAPI",
+                "Docker",
+                "Scikit-learn",
+                "Hugging Face",
+                "Vector Embeddings",
+            ],
+            "bio": "Senior NLP Engineer leading semantic search and information extraction systems for enterprise search catalogs using Transformer models.",
         },
         {
             "name": "Zoe Kravitz",
@@ -437,17 +522,20 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             "phone": "+1 (305) 612-4490",
             "location": "Miami, FL",
             "years": 2.5,
-            "education": [{"degree": "Associate Degree in Web Programming", "institution": "Miami Dade College", "year": "2022"}],
+            "education": [
+                {"degree": "Associate Degree in Web Programming", "institution": "Miami Dade College", "year": "2022"}
+            ],
             "skills": ["JavaScript", "React", "HTML5", "CSS3", "Bootstrap", "Git"],
-            "bio": "Frontend Web Developer with 2.5 years experience constructing landing pages, dashboards, and responsive web components using React and JavaScript."
-        }
+            "bio": "Frontend Web Developer with 2.5 years experience constructing landing pages, dashboards, and responsive web components using React and JavaScript.",
+        },
     ]
 
     use_fast = fast_mode or bool(os.environ.get("VERCEL"))
     if not use_fast:
-        from app.ai_engine.matching_engine import MatchingEngine
-        from app.ai_engine.interview_questions import InterviewQuestionGenerator
         from app.ai_engine.insights import CandidateInsights
+        from app.ai_engine.interview_questions import InterviewQuestionGenerator
+        from app.ai_engine.matching_engine import MatchingEngine
+
         matching_engine = MatchingEngine()
         question_gen = InterviewQuestionGenerator()
         insights_gen = CandidateInsights()
@@ -462,7 +550,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
         "description": job1.description,
         "min_experience": job1.min_experience,
         "education_req": job1.education_req,
-        "requirements": [{"skill_name": n, "category": c, "skill_type": s} for n, c, s in job1_reqs]
+        "requirements": [{"skill_name": n, "category": c, "skill_type": s} for n, c, s in job1_reqs],
     }
 
     job2_data = {
@@ -471,14 +559,14 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
         "description": job2.description,
         "min_experience": job2.min_experience,
         "education_req": job2.education_req,
-        "requirements": [{"skill_name": n, "category": c, "skill_type": s} for n, c, s in job2_reqs]
+        "requirements": [{"skill_name": n, "category": c, "skill_type": s} for n, c, s in job2_reqs],
     }
 
     for idx, c_info in enumerate(sample_candidates):
-        cand_id = f"00000000-0000-0000-0000-0000000002{idx+1:02d}"
-        existing_cand = db.query(Candidate).filter(
-            (Candidate.id == cand_id) | (Candidate.email == c_info["email"])
-        ).first()
+        cand_id = f"00000000-0000-0000-0000-0000000002{idx + 1:02d}"
+        existing_cand = (
+            db.query(Candidate).filter((Candidate.id == cand_id) | (Candidate.email == c_info["email"])).first()
+        )
         if existing_cand:
             continue
 
@@ -495,9 +583,14 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 "name": c_info["name"],
                 "email": c_info["email"],
                 "bio": c_info["bio"],
-                "projects": [{"name": f"{c_info['skills'][0]} Platform", "description": f"Architected high-scale platform utilizing {', '.join(c_info['skills'][:4])}."}]
+                "projects": [
+                    {
+                        "name": f"{c_info['skills'][0]} Platform",
+                        "description": f"Architected high-scale platform utilizing {', '.join(c_info['skills'][:4])}.",
+                    }
+                ],
             },
-            status="analyzed" if idx > 3 else "shortlisted"
+            status="analyzed" if idx > 3 else "shortlisted",
         )
         db.add(cand)
         db.commit()
@@ -512,7 +605,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
             file_type="pdf",
             file_size=1024 * 145,
             raw_text=f"{c_info['name']}\n{c_info['email']} | {c_info['phone']} | {c_info['location']}\n\nSummary:\n{c_info['bio']}\n\nTechnical Skills:\n{', '.join(c_info['skills'])}\n\nExperience:\n{c_info['years']} years in professional software engineering roles.",
-            processing_status="completed"
+            processing_status="completed",
         )
         db.add(res)
 
@@ -542,14 +635,20 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 education_score=90.0,
                 explanation={
                     "summary": f"{cand.name} matches {len(matched_j1)} of {len(job1_reqs)} key requirements for {job1.title}.",
-                    "interview_questions": [f"Describe your production experience with {matched_j1[0]}." if matched_j1 else "Describe your software architecture background."],
-                    "recruiter_insights": [f"Candidate possesses {cand.total_experience_years} years of demonstrated experience."]
+                    "interview_questions": [
+                        f"Describe your production experience with {matched_j1[0]}."
+                        if matched_j1
+                        else "Describe your software architecture background."
+                    ],
+                    "recruiter_insights": [
+                        f"Candidate possesses {cand.total_experience_years} years of demonstrated experience."
+                    ],
                 },
                 strengths=[f"Strong proficiency in {s}" for s in matched_j1[:3]],
                 skill_gaps=[f"Missing required background in {s}" for s in missing_j1[:3]],
                 matched_skills=[{"skill": s, "type": "language"} for s in matched_j1],
                 missing_skills=missing_j1[:5],
-                related_skills=[]
+                related_skills=[],
             )
             db.add(analysis1)
 
@@ -571,23 +670,31 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 education_score=95.0,
                 explanation={
                     "summary": f"{cand.name} matches {len(matched_j2)} of {len(job2_reqs)} key requirements for {job2.title}.",
-                    "interview_questions": [f"Describe your deep learning workflow using {matched_j2[0]}." if matched_j2 else "Describe your ML model serving experience."],
-                    "recruiter_insights": [f"Candidate has {cand.total_experience_years} years in relevant domains."]
+                    "interview_questions": [
+                        f"Describe your deep learning workflow using {matched_j2[0]}."
+                        if matched_j2
+                        else "Describe your ML model serving experience."
+                    ],
+                    "recruiter_insights": [f"Candidate has {cand.total_experience_years} years in relevant domains."],
                 },
                 strengths=[f"Demonstrated domain mastery in {s}" for s in matched_j2[:3]],
                 skill_gaps=[f"Missing experience in {s}" for s in missing_j2[:3]],
                 matched_skills=[{"skill": s, "type": "ai_ml"} for s in matched_j2],
                 missing_skills=missing_j2[:5],
-                related_skills=[]
+                related_skills=[],
             )
             db.add(analysis2)
         else:
             # Match against Job 1
             m1 = matching_engine.match(
                 job_data=job1_data,
-                candidate_data={"name": cand.name, "total_experience_years": cand.total_experience_years, "education": cand.education},
+                candidate_data={
+                    "name": cand.name,
+                    "total_experience_years": cand.total_experience_years,
+                    "education": cand.education,
+                },
                 candidate_skills=c_info["skills"],
-                resume_text=res.raw_text
+                resume_text=res.raw_text,
             )
 
             q1 = question_gen.generate_questions(
@@ -595,7 +702,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 matched_skills=[m["skill"] for m in m1["matched_skills"]],
                 missing_skills=m1["missing_skills"],
                 experience_years=cand.total_experience_years,
-                candidate_projects=cand.extracted_profile.get("projects", [])
+                candidate_projects=cand.extracted_profile.get("projects", []),
             )
 
             i1 = insights_gen.generate_insights(
@@ -604,7 +711,7 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 matched_skills=m1["matched_skills"],
                 missing_skills=m1["missing_skills"],
                 experience_years=cand.total_experience_years,
-                min_experience_required=job1.min_experience
+                min_experience_required=job1.min_experience,
             )
 
             m1["explanation"]["interview_questions"] = q1
@@ -624,16 +731,20 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 skill_gaps=m1["skill_gaps"],
                 matched_skills=m1["matched_skills"],
                 missing_skills=m1["missing_skills"],
-                related_skills=m1["related_skills"]
+                related_skills=m1["related_skills"],
             )
             db.add(analysis1)
 
             # Match against Job 2
             m2 = matching_engine.match(
                 job_data=job2_data,
-                candidate_data={"name": cand.name, "total_experience_years": cand.total_experience_years, "education": cand.education},
+                candidate_data={
+                    "name": cand.name,
+                    "total_experience_years": cand.total_experience_years,
+                    "education": cand.education,
+                },
                 candidate_skills=c_info["skills"],
-                resume_text=res.raw_text
+                resume_text=res.raw_text,
             )
 
             analysis2 = MatchingAnalysis(
@@ -650,42 +761,50 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
                 skill_gaps=m2["skill_gaps"],
                 matched_skills=m2["matched_skills"],
                 missing_skills=m2["missing_skills"],
-                related_skills=m2["related_skills"]
+                related_skills=m2["related_skills"],
             )
             db.add(analysis2)
 
         # Shortlist the top 2 candidates for Job 1
         if idx in [0, 9]:
-            db.add(Shortlist(
-                job_id=job1.id,
-                candidate_id=cand.id,
-                user_id=recruiter.id,
-                status="shortlisted",
-                comments=f"Exemplary background in {job1.title}. High scoring candidate."
-            ))
+            db.add(
+                Shortlist(
+                    job_id=job1.id,
+                    candidate_id=cand.id,
+                    user_id=recruiter.id,
+                    status="shortlisted",
+                    comments=f"Exemplary background in {job1.title}. High scoring candidate.",
+                )
+            )
 
     # Activity log & initial notifications
-    db.add(Notification(
-        user_id=recruiter.id,
-        type="success",
-        title="System Initialized",
-        message="TalentMatch AI platform successfully initialized with verified demo data.",
-        is_read=False
-    ))
-    db.add(Notification(
-        user_id=recruiter.id,
-        type="info",
-        title="12 Resumes Analyzed",
-        message="Candidate pool ranked across Senior Full-Stack Engineer and Lead AI/NLP roles.",
-        is_read=False
-    ))
-    db.add(ActivityLog(
-        user_id=recruiter.id,
-        action="SYSTEM_INIT",
-        entity_type="system",
-        entity_id="init-001",
-        details={"status": "ready", "candidates_seeded": 12, "jobs_seeded": 2}
-    ))
+    db.add(
+        Notification(
+            user_id=recruiter.id,
+            type="success",
+            title="System Initialized",
+            message="TalentMatch AI platform successfully initialized with verified demo data.",
+            is_read=False,
+        )
+    )
+    db.add(
+        Notification(
+            user_id=recruiter.id,
+            type="info",
+            title="12 Resumes Analyzed",
+            message="Candidate pool ranked across Senior Full-Stack Engineer and Lead AI/NLP roles.",
+            is_read=False,
+        )
+    )
+    db.add(
+        ActivityLog(
+            user_id=recruiter.id,
+            action="SYSTEM_INIT",
+            entity_type="system",
+            entity_id="init-001",
+            details={"status": "ready", "candidates_seeded": 12, "jobs_seeded": 2},
+        )
+    )
 
     db.commit()
     logger.info("Database seeding successfully completed.")

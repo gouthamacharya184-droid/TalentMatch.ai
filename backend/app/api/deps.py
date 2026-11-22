@@ -1,10 +1,11 @@
-from typing import Generator, Optional
+from collections.abc import Generator
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from app.database.session import SessionLocal
 from app.core.security import decode_token, is_token_revoked
+from app.database.session import SessionLocal
 from app.models.all_models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -16,8 +17,9 @@ _db_initialized = False
 def ensure_db_initialized() -> int:
     """Ensure database schema is created and demo users are seeded. Returns user count."""
     global _db_initialized
-    from app.database.session import Base, engine
     from app.database.seed import seed_database
+    from app.database.session import Base, engine
+
     try:
         Base.metadata.create_all(bind=engine)
     except Exception:
@@ -47,7 +49,7 @@ def get_db() -> Generator:
         db.close()
 
 
-def _resolve_user_from_payload(db: Session, payload: dict) -> Optional[User]:
+def _resolve_user_from_payload(db: Session, payload: dict) -> User | None:
     user_id = payload.get("sub")
     email = payload.get("email")
 
@@ -61,16 +63,14 @@ def _resolve_user_from_payload(db: Session, payload: dict) -> Optional[User]:
     # If demo user in ephemeral container was cleared, re-seed and retry
     if not user and email in ("admin@talentmatch.ai", "recruiter@talentmatch.ai"):
         from app.database.seed import seed_database
+
         seed_database(db, fast_mode=True)
         user = db.query(User).filter(User.email == email.lower()).first()
 
     return user
 
 
-def get_current_user(
-    db: Session = Depends(get_db),
-    token: Optional[str] = Depends(oauth2_scheme)
-) -> User:
+def get_current_user(db: Session = Depends(get_db), token: str | None = Depends(oauth2_scheme)) -> User:
     """
     Strict authentication dependency.
     Raises 401 Unauthorized if token is missing, invalid, expired, or revoked.
@@ -82,7 +82,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if is_token_revoked(token):
+    if is_token_revoked(token, db=db):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked. Please log in again.",
@@ -99,19 +99,13 @@ def get_current_user(
 
     user = _resolve_user_from_payload(db, payload)
     if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account not found or deactivated"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account not found or deactivated")
     return user
 
 
-def get_optional_current_user(
-    db: Session = Depends(get_db),
-    token: Optional[str] = Depends(oauth2_scheme)
-) -> Optional[User]:
+def get_optional_current_user(db: Session = Depends(get_db), token: str | None = Depends(oauth2_scheme)) -> User | None:
     """Optional authentication dependency for mixed or public endpoints."""
-    if not token or is_token_revoked(token):
+    if not token or is_token_revoked(token, db=db):
         return None
 
     payload = decode_token(token)
@@ -124,13 +118,15 @@ def get_optional_current_user(
 
 def require_role(allowed_roles: list):
     """Enforce role-based access control (RBAC)."""
+
     def role_checker(current_user: User = Depends(get_current_user)):
         if not current_user or current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Operation requires one of the following roles: {', '.join(allowed_roles)}"
+                detail=f"Operation requires one of the following roles: {', '.join(allowed_roles)}",
             )
         return current_user
+
     return role_checker
 
 

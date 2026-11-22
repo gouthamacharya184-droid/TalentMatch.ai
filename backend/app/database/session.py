@@ -1,9 +1,12 @@
+import logging
 import os
 import shutil
-import logging
+import tempfile
+
 from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -25,7 +28,7 @@ if db_url.startswith("sqlite"):
             "Using ephemeral SQLite in /tmp/talentmatch.db. DATA WILL NOT PERSIST across serverless invocations! "
             "Please configure DATABASE_URL (PostgreSQL) in Vercel -> Project Settings -> Environment Variables."
         )
-        tmp_db_path = "/tmp/talentmatch.db"
+        tmp_db_path = os.path.join(tempfile.gettempdir(), "talentmatch.db")
         if not os.path.exists(tmp_db_path):
             base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
             root_dir = os.path.abspath(os.path.join(base_dir, ".."))
@@ -74,6 +77,7 @@ else:
             db_url,
             poolclass=NullPool,
             pool_pre_ping=True,
+            pool_recycle=1800,
             echo=False,
         )
     else:
@@ -82,6 +86,7 @@ else:
             pool_pre_ping=True,
             pool_size=10,
             max_overflow=20,
+            pool_recycle=1800,
             echo=False,
         )
 

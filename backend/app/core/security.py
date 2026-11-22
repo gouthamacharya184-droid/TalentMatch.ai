@@ -3,13 +3,16 @@ import hashlib
 import hmac
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Union
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 import jwt
+
 from app.core.config import settings
 
 try:
     import bcrypt
+
     _HAS_BCRYPT = True
 except Exception:
     _HAS_BCRYPT = False
@@ -66,22 +69,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(
-    subject: Union[str, Any],
-    role: str = "recruiter",
-    email: Optional[str] = None,
-    expires_delta: Optional[timedelta] = None
+    subject: str | Any, role: str = "recruiter", email: str | None = None, expires_delta: timedelta | None = None
 ) -> str:
     """Create JWT access token with role and optional email claim."""
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode: Dict[str, Any] = {
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    to_encode: dict[str, Any] = {
         "sub": str(subject),
         "role": role,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
         "jti": str(uuid.uuid4()),
         "type": "access",
     }
@@ -91,13 +91,13 @@ def create_access_token(
     return encoded_jwt
 
 
-def create_refresh_token(subject: Union[str, Any]) -> str:
+def create_refresh_token(subject: str | Any) -> str:
     """Create JWT refresh token."""
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode: Dict[str, Any] = {
+    expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode: dict[str, Any] = {
         "sub": str(subject),
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
         "jti": str(uuid.uuid4()),
         "type": "refresh",
     }
@@ -105,47 +105,84 @@ def create_refresh_token(subject: Union[str, Any]) -> str:
     return encoded_jwt
 
 
-def decode_token(token: str) -> Optional[Dict[str, Any]]:
+def decode_token(token: str) -> dict[str, Any] | None:
     """Decode and validate JWT token."""
     try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload
     except Exception:
         return None
 
 
-# In-memory revocation set for logged-out / revoked tokens
+# In-memory revocation cache for instant lookups
 _REVOKED_TOKENS = set()
 
 
-def revoke_token(token: str) -> None:
-    """Add a token to the revoked tokens registry."""
-    if token:
-        _REVOKED_TOKENS.add(token)
+def revoke_token(token: str, db=None, reason: str = "logout") -> None:
+    """Add a token to in-memory cache and persistent database blocklist."""
+    if not token:
+        return
+    _REVOKED_TOKENS.add(token)
+    if db:
+        try:
+            from app.models.all_models import RevokedToken, generate_uuid, utc_now
+
+            payload = decode_token(token)
+            exp_dt = None
+            if payload and "exp" in payload:
+                try:
+                    exp_dt = datetime.fromtimestamp(payload["exp"], tz=UTC)
+                except Exception:
+                    pass
+
+            existing = db.query(RevokedToken).filter(RevokedToken.token == token).first()
+            if not existing:
+                db.add(
+                    RevokedToken(
+                        id=generate_uuid(), token=token, reason=reason, created_at=utc_now(), expires_at=exp_dt
+                    )
+                )
+                db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
 
-def is_token_revoked(token: str) -> bool:
-    """Check if token has been invalidated by logout."""
-    return token in _REVOKED_TOKENS
+def is_token_revoked(token: str, db=None) -> bool:
+    """Check if token has been invalidated by logout, refresh rotation, or revocation."""
+    if not token:
+        return False
+    if token in _REVOKED_TOKENS:
+        return True
+    if db:
+        try:
+            from app.models.all_models import RevokedToken
+
+            found = db.query(RevokedToken).filter(RevokedToken.token == token).first()
+            if found:
+                _REVOKED_TOKENS.add(token)
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def create_password_reset_token(email: str) -> str:
-    """Create short-lived JWT token (15 mins) for password reset."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    """Create short-lived JWT token (15 mins) with unique JTI for replay-safe password reset."""
+    expire = datetime.now(UTC) + timedelta(minutes=15)
     to_encode = {
         "sub": email.lower(),
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
-        "type": "password_reset"
+        "iat": datetime.now(UTC),
+        "jti": str(uuid.uuid4()),
+        "type": "password_reset",
     }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def verify_password_reset_token(token: str) -> Optional[str]:
+def verify_password_reset_token(token: str) -> str | None:
     """Verify password reset token and return user email if valid."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
@@ -154,4 +191,3 @@ def verify_password_reset_token(token: str) -> Optional[str]:
         return payload.get("sub")
     except Exception:
         return None
-
