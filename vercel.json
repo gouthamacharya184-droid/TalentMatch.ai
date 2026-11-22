@@ -1,9 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "framework": null,
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
+    {
+      "source": "/api/ping",
+      "destination": "/api/ping.py"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
