@@ -116,13 +116,14 @@ routers = [
     interview_kits_router,
     agents_router,
 ]
-# Ensure both primary API path and /api/v1 are supported without duplicate registrations
-api_prefixes = list(dict.fromkeys([settings.API_V1_STR, "/api/v1"]))
+# Ensure primary API paths (/api, /api/v1) and bare paths are supported without duplicate registrations
+api_prefixes = list(dict.fromkeys(["", settings.API_V1_STR, "/api/v1"]))
 for prefix in api_prefixes:
     for r in routers:
         app.include_router(r, prefix=prefix)
 
 # Health Check & Root
+@app.post("/job-descriptions/parse")
 @app.post("/api/job-descriptions/parse")
 async def parse_job_description_endpoint(file: UploadFile = File(...)):
     from app.api.jobs import upload_job_document

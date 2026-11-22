@@ -8,6 +8,7 @@ current_dir = Path(__file__).resolve().parent
 candidate_dirs = [
     current_dir.parent / "backend",
     current_dir / "backend",
+    Path.cwd() / "backend",
     Path("/var/task/backend"),
     Path("/var/task"),
     current_dir.parent,
