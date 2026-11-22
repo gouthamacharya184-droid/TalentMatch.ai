@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.all_models import Candidate, CandidateSkill
 from app.schemas.all_schemas import CandidateCreate, CandidateUpdate
@@ -36,11 +36,22 @@ class CandidateService:
             query = query.join(Candidate.skills).filter(CandidateSkill.skill_name.ilike(f"%{skill}%"))
 
         total = query.count()
-        candidates = query.order_by(Candidate.created_at.desc()).offset(skip).limit(limit).all()
+        candidates = (
+            query.options(selectinload(Candidate.skills), selectinload(Candidate.resume))
+            .order_by(Candidate.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         return candidates, total
 
     def get_candidate(self, db: Session, candidate_id: str) -> Candidate | None:
-        return db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        return (
+            db.query(Candidate)
+            .options(selectinload(Candidate.skills), selectinload(Candidate.resume))
+            .filter(Candidate.id == candidate_id)
+            .first()
+        )
 
     def update_candidate(self, db: Session, candidate_id: str, cand_in: CandidateUpdate) -> Candidate | None:
         candidate = self.get_candidate(db, candidate_id)

@@ -3,7 +3,7 @@ import os
 import re
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.ai_engine.agents.job_agent import JobDescriptionAgent
 from app.models.all_models import Job, JobRequirement, utc_now
@@ -35,11 +35,17 @@ class JobService:
             query = query.filter(Job.campaign_id == campaign_id)
 
         total = query.count()
-        jobs = query.order_by(Job.created_at.desc()).offset(skip).limit(limit).all()
+        jobs = (
+            query.options(selectinload(Job.requirements))
+            .order_by(Job.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         return jobs, total
 
     def get_job(self, db: Session, job_id: str) -> Job | None:
-        return db.query(Job).filter(Job.id == job_id).first()
+        return db.query(Job).options(selectinload(Job.requirements)).filter(Job.id == job_id).first()
 
     def create_job(self, db: Session, job_in: JobCreate, user_id: str | None = None) -> Job:
         job = Job(

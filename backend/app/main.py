@@ -114,6 +114,7 @@ async def add_request_id_and_timing(request: Request, call_next):
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -269,6 +270,23 @@ def root_health_check():
 def api_health_check():
     data = _get_health_data()
     return {"status": "ok", **data}
+
+
+@app.get("/ready")
+@app.get("/api/ready")
+def readiness_check():
+    """Readiness probe verifying live database connectivity."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Readiness probe failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "disconnected", "detail": str(e)},
+        )
 
 
 @app.get("/")

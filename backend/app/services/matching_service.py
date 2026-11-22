@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.ai_engine.agents.interview_agent import InterviewIntelligenceAgent
 from app.ai_engine.agents.matching_agent import CandidateMatchingAgent
@@ -218,7 +218,10 @@ class MatchingService:
         sort_order: str = "desc",
         min_score: float | None = None,
     ) -> list[MatchingAnalysis]:
-        query = db.query(MatchingAnalysis).filter(MatchingAnalysis.job_id == job_id)
+        query = db.query(MatchingAnalysis).options(
+            selectinload(MatchingAnalysis.candidate),
+            selectinload(MatchingAnalysis.job),
+        ).filter(MatchingAnalysis.job_id == job_id)
         if min_score is not None:
             query = query.filter(MatchingAnalysis.overall_score >= min_score)
 
@@ -243,14 +246,21 @@ class MatchingService:
         if not job:
             raise ValueError(f"Job not found with id: {job_id}")
 
-        analyses = db.query(MatchingAnalysis).filter(MatchingAnalysis.job_id == job_id).all()
+        analyses = (
+            db.query(MatchingAnalysis)
+            .options(selectinload(MatchingAnalysis.candidate).selectinload(Candidate.skills))
+            .filter(MatchingAnalysis.job_id == job_id)
+            .all()
+        )
         if not analyses:
             # If not yet analyzed, run base analysis
             analyses = self.analyze_match(db, job_id=job_id)
 
         candidate_eval_data = []
         for a in analyses:
-            cand = db.query(Candidate).filter(Candidate.id == a.candidate_id).first()
+            cand = a.candidate
+            if not cand:
+                cand = db.query(Candidate).filter(Candidate.id == a.candidate_id).first()
             if cand:
                 candidate_eval_data.append(
                     {
