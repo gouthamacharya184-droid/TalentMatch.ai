@@ -169,6 +169,29 @@ def is_token_revoked(token: str, db=None) -> bool:
     return False
 
 
+def cleanup_expired_revoked_tokens(db) -> int:
+    """Delete expired revoked tokens from the database to keep the blocklist table size bounded."""
+    if not db:
+        return 0
+    try:
+        from app.models.all_models import RevokedToken
+
+        now = datetime.now(UTC)
+        deleted = (
+            db.query(RevokedToken)
+            .filter(RevokedToken.expires_at.isnot(None), RevokedToken.expires_at < now)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        return deleted
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 def create_password_reset_token(email: str) -> str:
     """Create short-lived JWT token (15 mins) with unique JTI for replay-safe password reset."""
     expire = datetime.now(UTC) + timedelta(minutes=15)

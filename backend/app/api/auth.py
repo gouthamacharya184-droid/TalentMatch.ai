@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db, oauth2_scheme
 from app.core.config import settings
 from app.core.security import (
+    cleanup_expired_revoked_tokens,
     create_access_token,
     create_password_reset_token,
     create_refresh_token,
@@ -113,6 +114,8 @@ def logout(
 ):
     if token:
         revoke_token(token, db=db, reason="logout")
+    # Clean up expired revoked tokens in background to keep table size bounded
+    cleanup_expired_revoked_tokens(db=db)
     NotificationService.log_activity(
         db=db,
         action="USER_LOGOUT",

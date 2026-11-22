@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from collections import defaultdict
@@ -6,16 +7,30 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+logger = logging.getLogger(__name__)
+
+# Try importing redis for distributed serverless rate limiting (Upstash / Redis)
+try:
+    import redis
+
+    REDIS_AVAILABLE = True
+except ImportError:
+    redis = None
+    REDIS_AVAILABLE = False
+
 
 class RateLimiter:
     """
-    In-memory sliding window rate limiter.
+    Sliding window rate limiter supporting:
+    1. Distributed Redis backend (Upstash / Redis via REDIS_URL) for serverless multi-instance parity.
+    2. In-memory sliding window fallback for local development or when Redis is unreachable.
     Provides per-IP and per-endpoint throttling to mitigate brute force, DoS, and LLM cost abuse.
     """
 
     def __init__(self):
-        # Maps key -> list of timestamps
+        # Maps key -> list of timestamps for in-memory fallback
         self.requests: dict[str, list[float]] = defaultdict(list)
+
         # Endpoint prefix -> (max_requests, window_seconds)
         self.rules: dict[str, tuple[int, int]] = {
             "/api/auth/login": (15, 60),
@@ -28,11 +43,35 @@ class RateLimiter:
         }
         self.default_rule: tuple[int, int] = (150, 60)
 
+        # Initialize Redis connection if REDIS_URL is provided
+        self.redis_client = None
+        self._init_redis()
+
+    def _init_redis(self):
+        redis_url = os.environ.get("REDIS_URL")
+        if redis_url and REDIS_AVAILABLE:
+            try:
+                # Handle rediss:// and redis://
+                self.redis_client = redis.from_url(
+                    redis_url,
+                    decode_responses=True,
+                    socket_timeout=2.0,
+                    socket_connect_timeout=2.0,
+                    retry_on_timeout=True,
+                )
+                self.redis_client.ping()
+                logger.info("Distributed Redis rate limiter connected successfully.")
+            except Exception as e:
+                logger.warning(
+                    f"Could not connect to Redis at REDIS_URL: {e}. Falling back to in-memory sliding window rate limiter."
+                )
+                self.redis_client = None
+        else:
+            self.redis_client = None
+
     def _get_client_ip(self, request: Request) -> str:
-        # Check standard reverse proxy headers
         forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
-            # First IP in the comma-separated list is the client IP
             return forwarded_for.split(",")[0].strip()
         real_ip = request.headers.get("x-real-ip")
         if real_ip:
@@ -51,8 +90,19 @@ class RateLimiter:
 
         path = request.url.path
 
-        # Whitelist public system endpoints
-        if path in ("/health", "/api/health", "/api/ping", "/ping", "/", "/docs", "/redoc", "/openapi.json"):
+        # Whitelist public system and documentation endpoints
+        if path in (
+            "/health",
+            "/ready",
+            "/api/health",
+            "/api/ready",
+            "/api/ping",
+            "/ping",
+            "/",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        ):
             return False, 0, 9999
 
         ip = self._get_client_ip(request)
@@ -64,11 +114,32 @@ class RateLimiter:
                 limit, window = rule
                 break
 
-        key = f"{ip}:{path}"
+        key = f"tm:rl:{ip}:{path}"
         now = time.time()
         window_start = now - window
 
-        # Prune old timestamps
+        # Attempt Redis-backed sliding window evaluation first
+        if self.redis_client is not None:
+            try:
+                pipe = self.redis_client.pipeline()
+                pipe.zremrangebyscore(key, 0, window_start)
+                pipe.zcard(key)
+                pipe.zadd(key, {f"{now}:{time.time_ns()}": now})
+                pipe.expire(key, window + 5)
+                results = pipe.execute()
+
+                current_count = results[1]
+                if current_count >= limit:
+                    # Rate limit exceeded
+                    retry_after = max(1, window)
+                    return True, retry_after, limit
+
+                return False, 0, limit
+            except Exception as e:
+                logger.warning(f"Redis rate limiting operation failed ({e}). Reverting to in-memory evaluation.")
+                self.redis_client = None  # Temporary fallback to in-memory
+
+        # In-Memory sliding window fallback
         timestamps = [t for t in self.requests[key] if t > window_start]
         self.requests[key] = timestamps
 

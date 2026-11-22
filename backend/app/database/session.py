@@ -18,6 +18,20 @@ db_url = settings.DATABASE_URL
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
+is_test = bool(os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("ENVIRONMENT") == "test")
+is_production = not is_test and (
+    settings.ENVIRONMENT.lower() == "production"
+    or os.environ.get("VERCEL_ENV") == "production"
+)
+
+# Fail fast at startup in production if DATABASE_URL is missing or points to SQLite
+if is_production and (not db_url or db_url.startswith("sqlite")):
+    raise RuntimeError(
+        "FATAL: Production environment detected (ENVIRONMENT=production or VERCEL_ENV=production), "
+        "but DATABASE_URL is missing or configured with SQLite. Production requires a persistent PostgreSQL database "
+        "(e.g., Neon, Supabase, Vercel Postgres, or AWS RDS). Please configure DATABASE_URL=postgresql://user:password@host/dbname."
+    )
+
 is_vercel = bool(os.environ.get("VERCEL"))
 
 if db_url.startswith("sqlite"):

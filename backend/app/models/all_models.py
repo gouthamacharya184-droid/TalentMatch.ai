@@ -418,4 +418,4 @@ class RevokedToken(Base):
     token = Column(String(500), unique=True, nullable=False, index=True)
     reason = Column(String(100), default="logout")
     created_at = Column(DateTime, default=utc_now, index=True)
-    expires_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
