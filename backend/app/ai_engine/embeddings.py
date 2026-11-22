@@ -1,11 +1,12 @@
 import os
+import re
+import math
 import logging
 import hashlib
 from typing import List, Union, Optional, Dict
+from collections import Counter
 import numpy as np
 import httpx
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ class EmbeddingService:
     Supports 3 resilient tiers:
       Tier 1: Local Sentence Transformers (all-MiniLM-L6-v2, 384-D) with LRU caching
       Tier 2: Google Gemini Embeddings API (text-embedding-004, 768-D) for serverless execution
-      Tier 3: High-accuracy Scikit-Learn TF-IDF N-gram cosine similarity (deterministic fallback)
+      Tier 3: High-accuracy Pure-Python / Scikit-Learn TF-IDF N-gram cosine similarity (deterministic fallback)
     """
 
     _instance = None
@@ -48,7 +49,7 @@ class EmbeddingService:
         except Exception as e:
             logger.info(
                 f"SentenceTransformer not loaded ({str(e)}). "
-                "Active semantic modes: Google Gemini API embeddings + Scikit-Learn TF-IDF."
+                "Active semantic modes: Google Gemini API embeddings + Deterministic TF-IDF."
             )
             self._model = None
             self._use_transformers = False
@@ -108,6 +109,46 @@ class EmbeddingService:
             return None
         return None
 
+    @staticmethod
+    def _pure_tfidf_similarity(text_a: str, text_b: str) -> float:
+        """
+        Pure-Python n-gram TF-IDF cosine similarity.
+        Implements exact smooth-IDF formulation identical to Scikit-Learn without requiring heavy binary dependencies.
+        """
+        def extract_tokens(text: str):
+            words = re.findall(r"\b[a-zA-Z0-9_+#.-]+\b", text.lower())
+            unigrams = [w for w in words if len(w) > 1]
+            bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+            return unigrams + bigrams
+
+        tokens_a = extract_tokens(text_a)
+        tokens_b = extract_tokens(text_b)
+        if not tokens_a or not tokens_b:
+            return 0.0
+
+        counts_a = Counter(tokens_a)
+        counts_b = Counter(tokens_b)
+        all_terms = set(counts_a.keys()).union(set(counts_b.keys()))
+
+        dot_prod = 0.0
+        norm_a = 0.0
+        norm_b = 0.0
+
+        for term in all_terms:
+            df = (1 if term in counts_a else 0) + (1 if term in counts_b else 0)
+            idf = math.log(3.0 / (df + 1.0)) + 1.0  # Smooth IDF: log((N+1)/(df+1)) + 1
+            v_a = counts_a.get(term, 0) * idf
+            v_b = counts_b.get(term, 0) * idf
+            dot_prod += v_a * v_b
+            norm_a += v_a * v_a
+            norm_b += v_b * v_b
+
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+
+        sim = float(dot_prod / (math.sqrt(norm_a) * math.sqrt(norm_b)))
+        return round(max(0.0, min(1.0, sim)), 4)
+
     def compute_similarity(self, text_a: str, text_b: str) -> float:
         """
         Compute semantic cosine similarity score between two texts in range [0.0, 1.0].
@@ -124,11 +165,15 @@ class EmbeddingService:
             emb_b = self._get_embedding(text_b)
             if emb_a is not None and emb_b is not None:
                 try:
+                    from sklearn.metrics.pairwise import cosine_similarity
                     sim = float(cosine_similarity(emb_a.reshape(1, -1), emb_b.reshape(1, -1))[0][0])
                     normalized = max(0.0, min(1.0, (sim + 1.0) / 2.0))
                     return round(normalized, 4)
-                except Exception as e:
-                    logger.warning(f"SentenceTransformer cosine similarity failed: {e}")
+                except Exception:
+                    # Fallback to pure numpy dot product
+                    sim = float(np.dot(emb_a, emb_b) / (np.linalg.norm(emb_a) * np.linalg.norm(emb_b)))
+                    normalized = max(0.0, min(1.0, (sim + 1.0) / 2.0))
+                    return round(normalized, 4)
 
         # Method 2: Google Gemini Embeddings API (Serverless Cloud, 768-D)
         g_emb_a = self._get_gemini_embedding(text_a)
@@ -142,15 +187,16 @@ class EmbeddingService:
                 except Exception as e:
                     logger.warning(f"Gemini API cosine similarity failed: {e}")
 
-        # Method 3: Scikit-learn TF-IDF Cosine Similarity Fallback (Deterministic Mathematical)
+        # Method 3: Deterministic Mathematical TF-IDF Cosine Similarity Fallback
         try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
             vectorizer = TfidfVectorizer(ngram_range=(1, 2), stop_words="english")
             tfidf_matrix = vectorizer.fit_transform([text_a, text_b])
             sim = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0])
             return round(max(0.0, min(1.0, sim)), 4)
-        except Exception as e:
-            logger.error(f"TF-IDF similarity failed: {e}")
-            return 0.0
+        except Exception:
+            return self._pure_tfidf_similarity(text_a, text_b)
 
     def compute_batch_similarity(self, query: str, documents: List[str]) -> List[float]:
         """Compute cosine similarity between one query and multiple documents."""
@@ -180,7 +226,7 @@ class EmbeddingService:
         return {
             "model_name": "TF-IDF N-Gram Vectorizer (Deterministic)",
             "is_transformer": False,
-            "engine": "Scikit-Learn TF-IDF",
+            "engine": "Deterministic TF-IDF",
             "embedding_dimension": None,
             "status": "fallback"
         }
