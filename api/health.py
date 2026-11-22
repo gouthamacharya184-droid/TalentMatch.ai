@@ -51,13 +51,25 @@ def health():
     except Exception as e:
         db_status = f"disconnected: {str(e)}"
 
+    import_status = "not tested"
+    import_error = None
+    try:
+        from app.main import app as _main_app
+        import_status = f"success: {len(_main_app.routes)} routes"
+    except Exception as e:
+        import traceback
+        import_status = "failed"
+        import_error = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+
     is_prod = bool(os.environ.get("VERCEL"))
     return {
         "status": "ok",
         "service": "TalentMatch AI",
         "version": "1.0.0",
         "environment": "production" if is_prod else "development",
-        "database": db_status
+        "database": db_status,
+        "backend_import": import_status,
+        "backend_error": import_error
     }
 
 @app.get("/api/debug-import")
