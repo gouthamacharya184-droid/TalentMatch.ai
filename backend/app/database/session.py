@@ -23,13 +23,15 @@ if db_url.startswith("sqlite"):
         tmp_db_path = "/tmp/talentmatch.db"
         if not os.path.exists(tmp_db_path):
             base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-            src_db = os.path.join(base_dir, "talentmatch.db")
-            if os.path.exists(src_db):
-                try:
-                    shutil.copy2(src_db, tmp_db_path)
-                    logger.info(f"Copied seeded SQLite database to {tmp_db_path} for serverless execution.")
-                except Exception as e:
-                    logger.warning(f"Could not copy SQLite database to /tmp: {e}")
+            root_dir = os.path.abspath(os.path.join(base_dir, ".."))
+            for candidate in (os.path.join(base_dir, "talentmatch.db"), os.path.join(root_dir, "talentmatch.db")):
+                if os.path.exists(candidate):
+                    try:
+                        shutil.copy2(candidate, tmp_db_path)
+                        logger.info(f"Copied seeded SQLite database to {tmp_db_path} for serverless execution.")
+                        break
+                    except Exception as e:
+                        logger.warning(f"Could not copy SQLite database to /tmp: {e}")
         db_url = f"sqlite:///{tmp_db_path}"
     else:
         # Normalize relative sqlite path to canonical backend directory in local dev
