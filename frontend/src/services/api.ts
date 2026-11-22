@@ -53,17 +53,116 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// Response interceptor — handle 401 cleanly without abrupt window.location reload
+// Response interceptor:
+// 1. Refresh token rotation on 401
+// 2. Friendly error messaging on 429
+// 3. Network error handling and offline detection
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (res) => res,
-  (error: AxiosError) => {
-    const url = error.config?.url || '';
-    // Do not trigger global logout event when testing credentials on the login endpoint itself
-    if (error.response?.status === 401 && !url.includes('/auth/login')) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
-      window.dispatchEvent(new CustomEvent('talentmatch:unauthorized'));
+  async (error: AxiosError) => {
+    const originalRequest: any = error.config;
+    const url = originalRequest?.url || '';
+
+    // Handle Network / Offline failures
+    if (!error.response || error.code === 'ERR_NETWORK') {
+      window.dispatchEvent(
+        new CustomEvent('talentmatch:network-error', {
+          detail: {
+            message: 'Unable to reach backend service. Check your network or local server connection.',
+          },
+        })
+      );
+      return Promise.reject(error);
     }
+
+    // Handle 429 Rate Limiting with friendly message
+    if (error.response?.status === 429) {
+      const data: any = error.response.data;
+      const retryAfter = data?.retry_after_seconds || 60;
+      window.dispatchEvent(
+        new CustomEvent('talentmatch:rate-limited', {
+          detail: {
+            retryAfter,
+            message: `Rate limit reached. Please wait ${retryAfter} seconds before trying again.`,
+          },
+        })
+      );
+      return Promise.reject(error);
+    }
+
+    // Handle 401 Unauthorized with Token Refresh
+    if (error.response?.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/refresh')) {
+      const refreshToken = localStorage.getItem('refresh_token');
+
+      if (!refreshToken || originalRequest._retry) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.dispatchEvent(new CustomEvent('talentmatch:unauthorized'));
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((newToken) => {
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshResponse = await axios.post<AuthResponse>(
+          `${baseURL}/auth/refresh`,
+          { refresh_token: refreshToken },
+          { headers: { Authorization: `Bearer ${refreshToken}` } }
+        );
+
+        const newAccessToken = refreshResponse.data.access_token;
+        const newRefreshToken = refreshResponse.data.refresh_token || refreshToken;
+
+        localStorage.setItem('access_token', newAccessToken);
+        localStorage.setItem('refresh_token', newRefreshToken);
+
+        api.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
+        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+
+        processQueue(null, newAccessToken);
+        return api(originalRequest);
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.dispatchEvent(new CustomEvent('talentmatch:unauthorized'));
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
     return Promise.reject(error);
   },
 );

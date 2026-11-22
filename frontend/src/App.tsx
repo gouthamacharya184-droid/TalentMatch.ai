@@ -32,6 +32,7 @@ const SecurityPage = React.lazy(() => import('./pages/SecurityPage').then(m => (
 const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = React.lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const AgentActivityPage = React.lazy(() => import('./pages/AgentActivityPage').then(m => ({ default: m.AgentActivityPage })));
+const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading, token } = useAuth();
@@ -90,8 +91,8 @@ export const App: React.FC = () => {
                 <Route path="security" element={<SecurityPage />} />
               </Route>
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Fallback 404 Route */}
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </BrowserRouter>
