@@ -6,28 +6,24 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/api/ping",
-      "destination": "/api/ping.py"
-    },
-    {
       "source": "/api/health",
-      "destination": "/api/health.py"
+      "destination": "/api/health"
     },
     {
       "source": "/health",
-      "destination": "/api/health.py"
+      "destination": "/api/health"
     },
     {
-      "source": "/api",
-      "destination": "/api/index.py"
-    },
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index.py"
+      "source": "/api/ping",
+      "destination": "/api/ping"
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api",
+      "destination": "/api/index"
     },
     {
       "source": "/(.*)",
