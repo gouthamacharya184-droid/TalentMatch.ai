@@ -1,7 +1,8 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -99,6 +100,31 @@ async def add_security_headers(request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'none';"
     return response
+
+# Vercel Serverless Path Rewriter Middleware
+@app.middleware("http")
+async def fix_vercel_rewritten_paths(request: Request, call_next):
+    # When Vercel rewrites /api/* to /api/index.py, x-matched-path holds the original client URL
+    matched = request.headers.get("x-matched-path") or request.headers.get("x-forwarded-uri")
+    current_path = request.scope.get("path", "")
+    if matched and current_path in ("/api/index.py", "/api/index", "/index.py", "/api"):
+        clean_path = matched.split("?")[0]
+        if clean_path:
+            request.scope["path"] = clean_path
+    return await call_next(request)
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Not Found",
+            "path": request.url.path,
+            "scope_path": request.scope.get("path"),
+            "x_matched_path": request.headers.get("x-matched-path"),
+            "x_forwarded_uri": request.headers.get("x-forwarded-uri"),
+        }
+    )
 
 # Mount Routers for both /api and /api/v1
 routers = [
