@@ -51,6 +51,12 @@ backups/
 .DS_Store
 Thumbs.db
 
+# Agent & Config Metadata
+.agent/
+.agents/
+.gsd/
+.gemini/
+
 # Logs
 *.log
 logs/

@@ -13,9 +13,12 @@ test_resumes_edge_cases/
 sample_jobs/
 
 # Local Storage, Databases & Backups
+storage/uploads/
 storage/uploads/*
 !storage/uploads/.gitkeep
+backend/uploads/
 backend/uploads/*
+uploads/
 uploads/*
 backups/
 *.db
@@ -35,3 +38,9 @@ logs/
 # Documentation & Screenshots
 docs/
 screenshots/
+
+# Agent Tooling & Metadata
+.agent/
+.agents/
+.gsd/
+.gemini/
