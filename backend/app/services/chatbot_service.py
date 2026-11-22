@@ -49,7 +49,30 @@ class ChatbotService:
     def classify_intent(self, message: str) -> str:
         """Classify user query intent for recruitment assistance and safe boundary routing."""
         msg = message.lower().strip()
-        if any(w in msg for w in ["malware", "virus", "exploit", "keylogger", "hack", "cookie", "recipe", "chocolate"]):
+        out_of_scope_indicators = [
+            "malware",
+            "virus",
+            "exploit",
+            "keylogger",
+            "hack",
+            "cookie",
+            "recipe",
+            "chocolate",
+            "bake",
+            "election",
+            "president",
+            "weather",
+            "capital of",
+            "story about",
+            "fiction",
+            "math homework",
+            "solve for",
+            "poem",
+            "sonnet",
+            "dragon",
+            "alien",
+        ]
+        if any(w in msg for w in out_of_scope_indicators):
             return "out_of_scope"
         if any(w in msg for w in ["top", "rank", "leaderboard", "best candidate"]):
             return "ranking_query"
