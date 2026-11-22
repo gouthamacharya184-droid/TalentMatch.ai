@@ -10,7 +10,23 @@ from app.models.all_models import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
+_db_initialized = False
+
+
 def get_db() -> Generator:
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            from app.database.session import Base, engine
+            from app.database.seed import seed_database
+            Base.metadata.create_all(bind=engine)
+            init_db = SessionLocal()
+            seed_database(init_db, fast_mode=True)
+            init_db.close()
+        except Exception:
+            pass
+        _db_initialized = True
+
     db = SessionLocal()
     try:
         yield db
