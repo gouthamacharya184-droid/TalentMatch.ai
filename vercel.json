@@ -19,11 +19,11 @@
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/backend"
     },
     {
       "source": "/api",
-      "destination": "/api/index"
+      "destination": "/api/backend"
     },
     {
       "source": "/(.*)",

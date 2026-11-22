@@ -107,7 +107,7 @@ async def fix_vercel_rewritten_paths(request: Request, call_next):
     # When Vercel rewrites /api/* to /api/index.py, x-matched-path holds the original client URL
     matched = request.headers.get("x-matched-path") or request.headers.get("x-forwarded-uri")
     current_path = request.scope.get("path", "")
-    if matched and current_path in ("/api/index.py", "/api/index", "/index.py", "/api"):
+    if matched and current_path in ("/api/backend", "/api/index.py", "/api/index", "/index.py", "/api"):
         clean_path = matched.split("?")[0]
         if clean_path:
             request.scope["path"] = clean_path
