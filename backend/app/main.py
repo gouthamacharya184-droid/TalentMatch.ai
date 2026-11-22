@@ -141,8 +141,28 @@ async def parse_job_description_endpoint(file: UploadFile = File(...)):
 
 
 @app.get("/health")
+def root_health_check():
+    db_status = "connected"
+    try:
+        from sqlalchemy import text
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception as e:
+        db_status = f"disconnected: {str(e)}"
+
+    is_prod = bool(os.environ.get("VERCEL"))
+    return {
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "environment": "production" if is_prod else "development",
+        "database": db_status
+    }
+
+
 @app.get("/api/health")
-def health_check():
+def api_health_check():
     db_status = "connected"
     try:
         from sqlalchemy import text

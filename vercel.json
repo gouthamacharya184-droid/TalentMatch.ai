@@ -3,14 +3,6 @@
   "version": 2,
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
-  "framework": "vite",
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "memory": 1024,
-      "excludeFiles": "{frontend/**,node_modules/**,storage/**,test_resumes*/**,backups/**,screenshots/**,*.md,*.db,*.sqlite3,*.bak,docs/**,sample_jobs/**}"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
