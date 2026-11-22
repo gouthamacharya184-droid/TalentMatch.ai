@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Lock, EyeOff, UserCheck, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Lock, EyeOff, UserCheck, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export const SecurityPage: React.FC = () => {
   return (

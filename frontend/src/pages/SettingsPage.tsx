@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Sliders, CheckCircle2, ShieldCheck, Database, Cpu } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const [techWeight, setTechWeight] = useState(() => {

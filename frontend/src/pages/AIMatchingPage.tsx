@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Cpu,
-  Briefcase,
   Users,
   Sparkles,
   Trophy,
@@ -10,25 +8,17 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  Eye,
   Upload,
   X,
   FileText,
   Sliders,
   Search,
-  Filter,
   LayoutGrid,
   Table as TableIcon,
   GitCompare,
-  Bookmark,
-  Check,
   ChevronDown,
   ChevronUp,
-  RotateCcw,
-  Star,
-  ExternalLink,
-  Award,
-  Layers
+  Star
 } from 'lucide-react';
 import { jobsApi, candidatesApi, matchingApi, shortlistApi } from '../services/api';
 import type { Job, Candidate, MatchingAnalysis } from '../types';
@@ -46,7 +36,6 @@ export const AIMatchingPage: React.FC = () => {
   const [selectedJobId, setSelectedJobId] = useState<string>(initialJobId);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [matching, setMatching] = useState(false);
   const [matchingStatusText, setMatchingStatusText] = useState('Computing Semantic Vectors & Scoring...');
   const [results, setResults] = useState<MatchingAnalysis[]>([]);
@@ -99,7 +88,6 @@ export const AIMatchingPage: React.FC = () => {
   // Initial Fetch & Upload Handoff Handling
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
       setError(null);
       try {
         const [jobsRes, candsRes] = await Promise.all([
@@ -154,8 +142,6 @@ export const AIMatchingPage: React.FC = () => {
         setJobs([]);
         setCandidates([]);
         setResults([]);
-      } finally {
-        setLoading(false);
       }
     };
     fetchData();

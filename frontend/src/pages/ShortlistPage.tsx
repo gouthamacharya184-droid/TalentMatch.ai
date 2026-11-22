@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  BookmarkCheck,
-  Briefcase,
-  Users,
-  Search,
-  MessageSquare,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  ArrowRight
-} from 'lucide-react';
-import { jobsApi, shortlistApi, candidatesApi } from '../services/api';
+import { Trash2 } from 'lucide-react';
+import { jobsApi, shortlistApi } from '../services/api';
 import type { Job, Shortlist } from '../types';
 import { CandidateDetailModal } from '../components/CandidateDetailModal';
 

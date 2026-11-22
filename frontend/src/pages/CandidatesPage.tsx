@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Users,
   Search,
-  Filter,
-  Eye,
   Trash2,
-  BookmarkCheck,
   Briefcase,
-  MapPin,
   Mail,
-  GraduationCap,
-  Sparkles,
   LayoutGrid,
   List
 } from 'lucide-react';

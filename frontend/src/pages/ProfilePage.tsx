@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserCircle, Mail, Shield, Save, CheckCircle2, Lock } from 'lucide-react';
+import { Save, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 

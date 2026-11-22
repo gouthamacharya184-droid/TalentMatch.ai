@@ -9,13 +9,10 @@ import {
   Award,
   CheckCircle2,
   AlertTriangle,
-  HelpCircle,
   FileText,
   Download,
   Save,
-  MessageSquare,
   Sparkles,
-  ChevronRight,
   Eye,
 } from 'lucide-react';
 import type { Candidate, MatchingAnalysis, EvidenceReference, InterviewKit } from '../types';

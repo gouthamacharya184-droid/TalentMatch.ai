@@ -5,13 +5,10 @@ import {
   UploadCloud,
   Cpu,
   Users,
-  Trophy,
   BookmarkCheck,
   TrendingUp,
   Clock,
-  Sparkles,
   ArrowRight,
-  CheckCircle2,
   AlertCircle
 } from 'lucide-react';
 import {
@@ -23,8 +20,8 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from 'recharts';
-import { analyticsApi, jobsApi } from '../services/api';
-import type { DashboardStats, Job, MatchingAnalysis } from '../types';
+import { analyticsApi } from '../services/api';
+import type { DashboardStats } from '../types';
 import { CandidateDetailModal } from '../components/CandidateDetailModal';
 
 export const DashboardPage: React.FC = () => {

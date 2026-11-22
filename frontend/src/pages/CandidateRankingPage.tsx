@@ -1,25 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Trophy,
-  Filter,
-  Download,
   Search,
-  ArrowUpDown,
-  CheckCircle2,
   AlertCircle,
   FileSpreadsheet,
   FileText,
   FileCode,
   BookmarkCheck,
-  Eye,
-  GitCompare,
   Sparkles,
   GraduationCap,
-  Briefcase,
   ChevronLeft,
-  ChevronRight,
-  Layers
+  ChevronRight
 } from 'lucide-react';
 import { jobsApi, matchingApi, shortlistApi, analyticsApi } from '../services/api';
 import type { Job, MatchingAnalysis, WhatIfSimulationResponse } from '../types';
@@ -28,7 +19,6 @@ import { formatApiError } from '../utils/errors';
 
 export const CandidateRankingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const initialJobId = searchParams.get('job_id') || '';
 
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -39,7 +29,7 @@ export const CandidateRankingPage: React.FC = () => {
   const [minScore, setMinScore] = useState<number>(0);
   const [minExperience, setMinExperience] = useState<number>(0);
   const [sortBy, setSortBy] = useState('overall_score');
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [sortOrder] = useState<'desc' | 'asc'>('desc');
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,8 +170,6 @@ export const CandidateRankingPage: React.FC = () => {
   const totalPages = Math.ceil(filteredRankings.length / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedRankings = filteredRankings.slice(startIndex, startIndex + pageSize);
-
-  const selectedJob = jobs.find((j) => j.id === selectedJobId);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -367,9 +355,8 @@ export const CandidateRankingPage: React.FC = () => {
                   const designation =
                     ((r.candidate?.extracted_profile as any)?.experience?.[0]?.title) ||
                     ((r.candidate?.extracted_profile as any)?.bio ? 'Software Professional' : 'Candidate');
-                  const eduRecord = Array.isArray(r.candidate?.education) && (r.candidate?.education as any[]).length > 0
-                    ? (r.candidate?.education as any[])[0]?.degree
-                    : 'Degree not listed';
+                  const eduList = Array.isArray(r.candidate?.education) ? (r.candidate.education as any[]) : [];
+                  const eduRecord = eduList.length > 0 && eduList[0]?.degree ? eduList[0].degree : 'Degree not listed';
 
                   return (
                     <tr key={r.id} className="hover:bg-slate-50 transition-colors">

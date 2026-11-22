@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { History, Search, ArrowRight, Eye, Calendar, Sparkles } from 'lucide-react';
 import { analyticsApi } from '../services/api';
 import type { MatchingAnalysis } from '../types';
 import { CandidateDetailModal } from '../components/CandidateDetailModal';

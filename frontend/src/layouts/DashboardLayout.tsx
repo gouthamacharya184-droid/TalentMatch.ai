@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   UploadCloud,
@@ -17,7 +17,6 @@ import {
   Search,
   Menu,
   X,
-  CheckCircle2,
   Sparkles,
   WifiOff,
   Activity
@@ -31,7 +30,6 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 export const DashboardLayout: React.FC = () => {
   const { user, logout, isOffline, checkBackendHealth } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);

@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Activity,
   Cpu,
   Clock,
   CheckCircle2,
   AlertOctagon,
   RefreshCw,
   Search,
-  Filter,
-  Layers,
   Terminal,
-  Zap,
-  ShieldCheck,
-  ChevronRight
+  Zap
 } from 'lucide-react';
 import { agentsApi } from '../services/api';
 import type { AgentExecution, AgentActivityStats } from '../types';
@@ -20,7 +15,6 @@ import type { AgentExecution, AgentActivityStats } from '../types';
 export const AgentActivityPage: React.FC = () => {
   const [stats, setStats] = useState<AgentActivityStats | null>(null);
   const [executions, setExecutions] = useState<AgentExecution[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [agentFilter, setAgentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -38,7 +32,6 @@ export const AgentActivityPage: React.FC = () => {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
