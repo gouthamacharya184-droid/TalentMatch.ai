@@ -35,9 +35,10 @@ export const CandidatesPage: React.FC = () => {
         status: statusFilter || undefined,
         min_experience: minExp,
       });
-      setCandidates(res.items);
+      setCandidates(res?.items ?? []);
     } catch (e) {
       console.error(e);
+      setCandidates([]);
     } finally {
       setLoading(false);
     }

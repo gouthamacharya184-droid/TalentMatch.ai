@@ -4,6 +4,11 @@
   "framework": null,
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "{backend/**,sample_resumes/**}"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/ping",
@@ -11,10 +16,6 @@
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    },
-    {
-      "source": "/health",
       "destination": "/api/index.py"
     },
     {

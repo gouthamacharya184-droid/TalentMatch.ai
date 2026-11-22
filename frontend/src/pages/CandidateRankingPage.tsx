@@ -90,12 +90,14 @@ export const CandidateRankingPage: React.FC = () => {
     const fetchJobs = async () => {
       try {
         const res = await jobsApi.getJobs({ limit: 50 });
-        setJobs(res.items);
-        if (!selectedJobId && res.items.length > 0) {
-          setSelectedJobId(res.items[0].id);
+        const items = res?.items ?? [];
+        setJobs(items);
+        if (!selectedJobId && items.length > 0) {
+          setSelectedJobId(items[0].id);
         }
       } catch (e: any) {
         console.error(e);
+        setJobs([]);
         setError('Failed to load active jobs for ranking analysis.');
       }
     };
@@ -112,9 +114,10 @@ export const CandidateRankingPage: React.FC = () => {
         sort_order: sortOrder,
         min_score: minScore > 0 ? minScore : undefined,
       });
-      setRankings(data);
+      setRankings(Array.isArray(data) ? data : []);
     } catch (e: any) {
       console.error(e);
+      setRankings([]);
       setError(formatApiError(e, 'Failed to retrieve candidate rankings.'));
     } finally {
       setLoading(false);

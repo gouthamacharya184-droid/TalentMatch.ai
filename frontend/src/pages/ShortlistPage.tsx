@@ -25,12 +25,14 @@ export const ShortlistPage: React.FC = () => {
     const fetchJobs = async () => {
       try {
         const res = await jobsApi.getJobs({ limit: 50 });
-        setJobs(res.items);
-        if (res.items.length > 0) {
-          setSelectedJobId(res.items[0].id);
+        const items = res?.items ?? [];
+        setJobs(items);
+        if (items.length > 0) {
+          setSelectedJobId(items[0].id);
         }
       } catch (e) {
         console.error(e);
+        setJobs([]);
       }
     };
     fetchJobs();
@@ -41,9 +43,10 @@ export const ShortlistPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await shortlistApi.getJobShortlist(selectedJobId);
-      setShortlists(data);
+      setShortlists(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
+      setShortlists([]);
     } finally {
       setLoading(false);
     }

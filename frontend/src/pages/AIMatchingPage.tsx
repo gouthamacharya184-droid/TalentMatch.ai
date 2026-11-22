@@ -100,16 +100,19 @@ export const AIMatchingPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setError(null);
       try {
         const [jobsRes, candsRes] = await Promise.all([
-          jobsApi.getJobs({ limit: 100 }),
-          candidatesApi.getCandidates({ limit: 100 }),
+          jobsApi.getJobs({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
+          candidatesApi.getCandidates({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
         ]);
-        setJobs(jobsRes.items);
-        setCandidates(candsRes.items);
+        const jobItems = jobsRes?.items ?? [];
+        const candItems = candsRes?.items ?? [];
+        setJobs(jobItems);
+        setCandidates(candItems);
 
         // Auto select first job if none chosen
-        const activeJobId = initialJobId || (jobsRes.items.length > 0 ? jobsRes.items[0].id : '');
+        const activeJobId = initialJobId || (jobItems.length > 0 ? jobItems[0].id : '');
         setSelectedJobId(activeJobId);
 
         // Check if navigated from Resume Upload with specific candidate IDs
@@ -121,7 +124,7 @@ export const AIMatchingPage: React.FC = () => {
           setCandidatePoolTab('recent');
         } else {
           // Pre-select all candidate IDs by default
-          setSelectedCandidateIds(candsRes.items.map((c) => c.id));
+          setSelectedCandidateIds(candItems.map((c) => c.id));
         }
 
         // Fetch existing shortlisted candidates for the job if selected
@@ -129,7 +132,7 @@ export const AIMatchingPage: React.FC = () => {
           try {
             const shortlists = await shortlistApi.getJobShortlist(activeJobId);
             const sMap: Record<string, boolean> = {};
-            shortlists.forEach((s) => {
+            (Array.isArray(shortlists) ? shortlists : []).forEach((s) => {
               sMap[s.candidate_id] = true;
             });
             setShortlistedMap(sMap);
@@ -140,13 +143,17 @@ export const AIMatchingPage: React.FC = () => {
           // Fetch existing rankings
           try {
             const matchRes = await matchingApi.getRankings(activeJobId);
-            setResults(matchRes);
+            setResults(Array.isArray(matchRes) ? matchRes : []);
           } catch {
-            // ignore
+            setResults([]);
           }
         }
       } catch (e) {
         console.error(e);
+        setError(formatApiError(e, 'Failed to connect to the backend API. Operating in offline/preview mode.'));
+        setJobs([]);
+        setCandidates([]);
+        setResults([]);
       } finally {
         setLoading(false);
       }
@@ -160,12 +167,12 @@ export const AIMatchingPage: React.FC = () => {
     setSelectedForCompare([]);
     try {
       const [matchRes, shortlists] = await Promise.all([
-        matchingApi.getRankings(jobId),
+        matchingApi.getRankings(jobId).catch(() => []),
         shortlistApi.getJobShortlist(jobId).catch(() => []),
       ]);
-      setResults(matchRes);
+      setResults(Array.isArray(matchRes) ? matchRes : []);
       const sMap: Record<string, boolean> = {};
-      shortlists.forEach((s) => {
+      (Array.isArray(shortlists) ? shortlists : []).forEach((s) => {
         sMap[s.candidate_id] = true;
       });
       setShortlistedMap(sMap);
@@ -328,12 +335,13 @@ export const AIMatchingPage: React.FC = () => {
 
   // Candidate Selection logic
   const filteredCandidatePool = useMemo(() => {
-    return candidates.filter((c) => {
+    return (candidates ?? []).filter((c) => {
+      if (!c) return false;
       const matchesSearch =
         candidatePoolSearch === '' ||
-        c.name.toLowerCase().includes(candidatePoolSearch.toLowerCase()) ||
+        (c.name ?? '').toLowerCase().includes(candidatePoolSearch.toLowerCase()) ||
         (c.email && c.email.toLowerCase().includes(candidatePoolSearch.toLowerCase())) ||
-        (c.skills && c.skills.some((s) => s.skill_name.toLowerCase().includes(candidatePoolSearch.toLowerCase())));
+        (c.skills && c.skills.some((s) => (s?.skill_name ?? '').toLowerCase().includes(candidatePoolSearch.toLowerCase())));
 
       if (candidatePoolTab === 'recent') {
         const navState = location.state as { candidateIds?: string[] } | null;
@@ -347,18 +355,19 @@ export const AIMatchingPage: React.FC = () => {
   }, [candidates, candidatePoolSearch, candidatePoolTab, location.state]);
 
   const toggleCandidate = (id: string) => {
-    if (selectedCandidateIds.includes(id)) {
-      setSelectedCandidateIds(selectedCandidateIds.filter((cId) => cId !== id));
+    if ((selectedCandidateIds ?? []).includes(id)) {
+      setSelectedCandidateIds((selectedCandidateIds ?? []).filter((cId) => cId !== id));
     } else {
-      setSelectedCandidateIds([...selectedCandidateIds, id]);
+      setSelectedCandidateIds([...(selectedCandidateIds ?? []), id]);
     }
   };
 
   const toggleAllCandidates = () => {
-    if (selectedCandidateIds.length === candidates.length) {
+    const candList = candidates ?? [];
+    if (selectedCandidateIds.length === candList.length) {
       setSelectedCandidateIds([]);
     } else {
-      setSelectedCandidateIds(candidates.map((c) => c.id));
+      setSelectedCandidateIds(candList.map((c) => c.id));
     }
   };
 
@@ -442,29 +451,31 @@ export const AIMatchingPage: React.FC = () => {
 
   // Metrics Overview Calculations
   const metrics = useMemo(() => {
-    if (results.length === 0) return null;
-    const total = results.length;
-    const top = results.filter((r) => r.overall_score >= 80).length;
-    const strong = results.filter((r) => r.overall_score >= 65 && r.overall_score < 80).length;
-    const moderate = results.filter((r) => r.overall_score >= 50 && r.overall_score < 65).length;
-    const low = results.filter((r) => r.overall_score < 50).length;
-    const avg = Math.round(results.reduce((sum, r) => sum + r.overall_score, 0) / total);
+    const list = Array.isArray(results) ? results : [];
+    if (list.length === 0) return null;
+    const total = list.length;
+    const top = list.filter((r) => (r?.overall_score ?? 0) >= 80).length;
+    const strong = list.filter((r) => (r?.overall_score ?? 0) >= 65 && (r?.overall_score ?? 0) < 80).length;
+    const moderate = list.filter((r) => (r?.overall_score ?? 0) >= 50 && (r?.overall_score ?? 0) < 65).length;
+    const low = list.filter((r) => (r?.overall_score ?? 0) < 50).length;
+    const avg = Math.round(list.reduce((sum, r) => sum + (r?.overall_score ?? 0), 0) / total);
     return { total, top, strong, moderate, low, avg };
   }, [results]);
 
   // Results Filtering & Sorting
   const processedResults = useMemo(() => {
-    let list = [...results];
+    let list = Array.isArray(results) ? [...results] : [];
 
     // Filter by search query
     if (resultsSearch.trim()) {
       const q = resultsSearch.toLowerCase();
       list = list.filter((r) => {
+        if (!r) return false;
         const nameMatch = r.candidate?.name?.toLowerCase().includes(q);
         const emailMatch = r.candidate?.email?.toLowerCase().includes(q);
         const skillMatch =
           r.matched_skills?.some((s: any) =>
-            (typeof s === 'string' ? s : s.skill || '').toLowerCase().includes(q)
+            (typeof s === 'string' ? s : s?.skill || '').toLowerCase().includes(q)
           ) || false;
         return nameMatch || emailMatch || skillMatch;
       });
@@ -472,37 +483,48 @@ export const AIMatchingPage: React.FC = () => {
 
     // Filter by tier
     if (tierFilter === 'top') {
-      list = list.filter((r) => r.overall_score >= 80);
+      list = list.filter((r) => (r?.overall_score ?? 0) >= 80);
     } else if (tierFilter === 'strong') {
-      list = list.filter((r) => r.overall_score >= 65 && r.overall_score < 80);
+      list = list.filter((r) => (r?.overall_score ?? 0) >= 65 && (r?.overall_score ?? 0) < 80);
     } else if (tierFilter === 'moderate') {
-      list = list.filter((r) => r.overall_score >= 50 && r.overall_score < 65);
+      list = list.filter((r) => (r?.overall_score ?? 0) >= 50 && (r?.overall_score ?? 0) < 65);
     } else if (tierFilter === 'low') {
-      list = list.filter((r) => r.overall_score < 50);
+      list = list.filter((r) => (r?.overall_score ?? 0) < 50);
     }
 
     // Filter by minimum score
     if (minScoreFilter > 0) {
-      list = list.filter((r) => r.overall_score >= minScoreFilter);
+      list = list.filter((r) => (r?.overall_score ?? 0) >= minScoreFilter);
     }
 
     // Sort
     list.sort((a, b) => {
-      if (sortBy === 'tech') return b.technical_score - a.technical_score;
-      if (sortBy === 'semantic') return b.semantic_score - a.semantic_score;
-      if (sortBy === 'exp') return b.experience_score - a.experience_score;
-      if (sortBy === 'edu') return b.education_score - a.education_score;
-      return b.overall_score - a.overall_score;
+      const aTech = a?.technical_score ?? 0;
+      const bTech = b?.technical_score ?? 0;
+      const aSem = a?.semantic_score ?? 0;
+      const bSem = b?.semantic_score ?? 0;
+      const aExp = a?.experience_score ?? 0;
+      const bExp = b?.experience_score ?? 0;
+      const aEdu = a?.education_score ?? 0;
+      const bEdu = b?.education_score ?? 0;
+      const aOverall = a?.overall_score ?? 0;
+      const bOverall = b?.overall_score ?? 0;
+
+      if (sortBy === 'tech') return bTech - aTech;
+      if (sortBy === 'semantic') return bSem - aSem;
+      if (sortBy === 'exp') return bExp - aExp;
+      if (sortBy === 'edu') return bEdu - aEdu;
+      return bOverall - aOverall;
     });
 
     return list;
   }, [results, resultsSearch, tierFilter, minScoreFilter, sortBy]);
 
-  const currentJob = jobs.find((j) => j.id === selectedJobId);
+  const currentJob = (jobs ?? []).find((j) => j && j.id === selectedJobId);
 
   // Candidates for Comparison Modal
   const comparedCandidates = useMemo(() => {
-    return results.filter((r) => selectedForCompare.includes(r.candidate_id));
+    return (Array.isArray(results) ? results : []).filter((r) => r && selectedForCompare.includes(r.candidate_id));
   }, [results, selectedForCompare]);
 
   return (

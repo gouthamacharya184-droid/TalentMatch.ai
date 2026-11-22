@@ -37,16 +37,18 @@ export const AnalyticsPage: React.FC = () => {
     const fetchData = async () => {
       try {
         const [dashRes, jobsRes] = await Promise.all([
-          analyticsApi.getDashboard(),
-          jobsApi.getJobs({ limit: 50 }),
+          analyticsApi.getDashboard().catch(() => null),
+          jobsApi.getJobs({ limit: 50 }).catch(() => ({ items: [], total: 0 })),
         ]);
         setStats(dashRes);
-        setJobs(jobsRes.items);
-        if (jobsRes.items.length > 0) {
-          setSelectedJobId(jobsRes.items[0].id);
+        const items = jobsRes?.items ?? [];
+        setJobs(items);
+        if (items.length > 0) {
+          setSelectedJobId(items[0].id);
         }
       } catch (e) {
         console.error(e);
+        setJobs([]);
       } finally {
         setLoading(false);
       }
