@@ -55,8 +55,8 @@ audit_test_results.json
 .DS_Store
 Thumbs.db
 
-# AI Models (downloaded at runtime)
-models/
+# AI Models (downloaded at runtime in project root)
+/models/
 
 # Logs
 *.log

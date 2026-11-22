@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Setup Python path before anything else
+# Setup Python path before importing backend modules
 current_dir = Path(__file__).resolve().parent
 candidate_dirs = [
     current_dir.parent / "backend",
@@ -51,69 +51,11 @@ def health():
     except Exception as e:
         db_status = f"disconnected: {str(e)}"
 
-    import_status = "not tested"
-    import_error = None
-    try:
-        from app.main import app as _main_app
-        import_status = f"success: {len(_main_app.routes)} routes"
-    except Exception as e:
-        import traceback
-        import_status = "failed"
-        import_error = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-
     is_prod = bool(os.environ.get("VERCEL"))
     return {
         "status": "ok",
         "service": "TalentMatch AI",
         "version": "1.0.0",
         "environment": "production" if is_prod else "development",
-        "database": db_status,
-        "backend_import": import_status,
-        "backend_error": import_error
-    }
-
-@app.get("/api/debug-import")
-def debug_import():
-    import traceback
-    logs = []
-    modules_to_test = [
-        "app.core.config",
-        "app.database.session",
-        "app.database.seed",
-        "app.models.all_models",
-        "app.schemas.all_schemas",
-        "app.api.deps",
-        "app.api.auth",
-        "app.api.jobs",
-        "app.api.resumes",
-        "app.api.candidates",
-        "app.api.matching",
-        "app.api.comparison",
-        "app.api.shortlist",
-        "app.api.analytics",
-        "app.api.notifications",
-        "app.api.chatbot",
-        "app.api.campaigns",
-        "app.api.interview_kits",
-        "app.api.agents",
-        "app.main",
-    ]
-    for mod_name in modules_to_test:
-        try:
-            logs.append(f"Importing {mod_name}...")
-            __import__(mod_name)
-            logs.append(f"SUCCESS: {mod_name}")
-        except Exception as e:
-            return {
-                "status": "failed",
-                "failed_module": mod_name,
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "logs": logs,
-                "sys_path": sys.path[:5]
-            }
-    return {
-        "status": "all_passed",
-        "logs": logs,
-        "sys_path": sys.path[:5]
+        "database": db_status
     }
