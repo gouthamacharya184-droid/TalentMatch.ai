@@ -66,3 +66,9 @@ backend/logs/
 htmlcov/
 .coverage
 coverage.xml
+
+# Playwright
+playwright-report/
+test-results/
+frontend/playwright-report/
+frontend/test-results/
