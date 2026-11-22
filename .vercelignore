@@ -1,14 +1,37 @@
 # Vercel Deployment Ignore Rules
-# Exclude heavy testing datasets, local node_modules, and local backups
-frontend/node_modules
+
+# Dependencies & Virtual Environments
+frontend/node_modules/
+.venv/
+venv/
+backend/venv/
+
+# Tests & Test Fixtures (not needed in production bundle)
+backend/tests/
+test_resumes_50/
+test_resumes_edge_cases/
+sample_jobs/
+
+# Local Storage, Databases & Backups
 storage/uploads/*
 !storage/uploads/.gitkeep
-test_resumes_50
-test_resumes_edge_cases
-backups
-screenshots
-docs
-sample_jobs
+backend/uploads/*
+uploads/*
+backups/
 *.db
 *.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 *.bak
+
+# Cache & Logs
+__pycache__/
+*.pyc
+*.log
+logs/
+.pytest_cache/
+
+# Documentation & Screenshots
+docs/
+screenshots/

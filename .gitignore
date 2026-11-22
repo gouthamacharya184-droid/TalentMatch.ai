@@ -9,13 +9,16 @@ venv/
 backend/venv/
 env/
 
-# Environment
+# Environment Variables
 .env
 .env.*
 !.env.example
 backend/.env
 backend/.env.*
 !backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 
 # Build & Cache
 dist/
@@ -40,13 +43,6 @@ backups/
 *.db-shm
 *.bak
 
-# Temporary scripts & inspection artifacts
-inspect_*.py
-extract_prompt.py
-user_prompt_*.txt
-*_inventory.json
-audit_test_results.json
-
 # IDE & OS
 .vscode/
 .idea/
@@ -55,17 +51,12 @@ audit_test_results.json
 .DS_Store
 Thumbs.db
 
-# AI Models (downloaded at runtime in project root)
-/models/
-
 # Logs
 *.log
 logs/
 backend/logs/
 
-# Test coverage
+# Test Coverage
 htmlcov/
 .coverage
 coverage.xml
-
-
