@@ -15,28 +15,36 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
 
       - name: Install Backend Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+          pip install pytest pytest-asyncio httpx ruff bandit pip-audit
 
-      - name: Execute Pytest Suite
+      - name: Security Scan (Bandit)
+        run: |
+          bandit -r backend/app -ll -q
+
+      - name: Code Quality & Lint (Ruff)
+        run: |
+          ruff check backend/app
+
+      - name: Execute Full Pytest Suite
         env:
-          PYTHONPATH: backend
+          PYTHONPATH: backend:.
           SECRET_KEY: test_secret_key_for_ci_pipeline_only_123456789
           ENVIRONMENT: test
         run: |
-          pytest backend/tests/ -v
+          pytest -v
 
   frontend-test:
-    name: Frontend Production Build
+    name: Frontend Lint & Production Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,6 +63,9 @@ jobs:
 
       - name: Install Frontend Dependencies
         run: npm ci
+
+      - name: Run Oxlint Linter
+        run: npm run lint
 
       - name: Run Type Checking & Build
         run: npm run build
