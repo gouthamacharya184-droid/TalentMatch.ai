@@ -14,8 +14,8 @@ client = TestClient(app)
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 SAMPLE_DIR = os.path.join(BASE_DIR, "sample_resumes")
-RESUMES_50_DIR = os.path.join(BASE_DIR, "test_resumes_50")
-EDGE_DIR = os.path.join(BASE_DIR, "test_resumes_edge_cases")
+RESUMES_50_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "test_resumes_50")
+EDGE_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "test_resumes_edge_cases")
 
 
 def get_token() -> str:

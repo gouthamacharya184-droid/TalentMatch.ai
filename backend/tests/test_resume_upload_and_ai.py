@@ -15,7 +15,7 @@ def setup_db():
 
 def test_jd_upload_document():
     # Test uploading a sample PDF job description
-    sample_jobs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../sample_jobs"))
+    sample_jobs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures/sample_jobs"))
     pdf_path = os.path.join(sample_jobs_dir, "Job_Senior_FullStack_Engineer.pdf")
     assert os.path.exists(pdf_path), "Sample JD PDF must exist"
 

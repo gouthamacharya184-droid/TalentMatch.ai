@@ -9,8 +9,8 @@ from app.models.all_models import User, Job, Candidate, Resume, MatchingAnalysis
 
 client = TestClient(app)
 
-RESUMES_50_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../test_resumes_50"))
-EDGE_CASES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../test_resumes_edge_cases"))
+RESUMES_50_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures/test_resumes_50"))
+EDGE_CASES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures/test_resumes_edge_cases"))
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_module():
