@@ -368,6 +368,13 @@ export const DashboardLayout: React.FC = () => {
                 <ShieldCheck className="w-4 h-4" />
                 <span>Security</span>
               </NavLink>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50/70 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
         </div>
