@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 def seed_database(db: Session):
     """Seed initial demo users, realistic job descriptions, and candidate resumes."""
+    # Fast exit if database is already seeded to avoid heavy cold-start recomputations
+    if db.query(User).filter(User.email == "admin@talentmatch.ai").first():
+        logger.info("Database is already seeded. Skipping full seed cycle.")
+        return
     
     # 1. Seed Users
     admin = db.query(User).filter(User.email == "admin@talentmatch.ai").first()

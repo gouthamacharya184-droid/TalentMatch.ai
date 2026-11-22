@@ -42,12 +42,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Error creating database tables on startup: {e}")
     
-    try:
-        db = SessionLocal()
-        seed_database(db)
-        db.close()
-    except Exception as e:
-        logger.warning(f"Error seeding database: {e}")
+    # In Vercel serverless, database is already seeded or pre-copied to /tmp; avoid blocking cold start
+    if not os.environ.get("VERCEL"):
+        try:
+            db = SessionLocal()
+            seed_database(db)
+            db.close()
+        except Exception as e:
+            logger.warning(f"Error seeding database: {e}")
+    else:
+        logger.info("Vercel Serverless environment: bypassing cold-start database seed.")
     
     logger.info("TalentMatch AI backend started successfully.")
     yield

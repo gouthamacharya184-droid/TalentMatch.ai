@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import traceback
 from pathlib import Path
 
@@ -28,7 +29,50 @@ if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
 try:
-    from app.main import app
+    from app.main import app as raw_app
+
+    class SafeASGIApp:
+        def __init__(self, inner):
+            self.inner = inner
+
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") == "http":
+                headers = dict(scope.get("headers", []))
+                matched_bytes = headers.get(b"x-matched-path") or headers.get(b"x-forwarded-uri") or b""
+                matched_path = matched_bytes.decode("utf-8") if isinstance(matched_bytes, bytes) else str(matched_bytes)
+                if matched_path:
+                    clean = matched_path.split("?")[0]
+                    if clean and scope.get("path") in ("/api/backend", "/api/index", "/api"):
+                        scope["path"] = clean
+
+                try:
+                    await self.inner(scope, receive, send)
+                except Exception as exc:
+                    tb = traceback.format_exc()
+                    err_payload = json.dumps({
+                        "status": "error",
+                        "error": "Unhandled Serverless Exception",
+                        "detail": str(exc),
+                        "traceback": tb,
+                        "path": scope.get("path")
+                    }).encode("utf-8")
+                    await send({
+                        "type": "http.response.start",
+                        "status": 500,
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"content-length", str(len(err_payload)).encode("utf-8")),
+                        ],
+                    })
+                    await send({
+                        "type": "http.response.body",
+                        "body": err_payload,
+                    })
+            else:
+                await self.inner(scope, receive, send)
+
+    app = SafeASGIApp(raw_app)
+
 except Exception as _e:
     _tb = traceback.format_exc()
     from fastapi import FastAPI
