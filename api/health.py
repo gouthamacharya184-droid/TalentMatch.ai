@@ -59,3 +59,26 @@ def health():
         "environment": "production" if is_prod else "development",
         "database": db_status
     }
+
+@app.get("/api/health/debug")
+@app.get("/health/debug")
+def health_debug():
+    import traceback
+    info = {
+        "python_version": sys.version,
+        "sys_path": sys.path[:8],
+        "cwd": str(Path.cwd()),
+        "env_vercel": os.environ.get("VERCEL"),
+    }
+    try:
+        from app.main import app as main_app
+        info["import_app_main"] = "SUCCESS"
+        info["routes_count"] = len(main_app.routes)
+        info["routes_sample"] = [r.path for r in main_app.routes[:10]]
+    except Exception as e:
+        info["import_app_main"] = "FAILED"
+        info["error_class"] = type(e).__name__
+        info["error_msg"] = str(e)
+        info["traceback"] = traceback.format_exc()
+    return info
+
