@@ -1,22 +1,22 @@
 import os
 import sys
 import traceback
+from pathlib import Path
 
 # Setup python path for backend
-current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(current_dir)
-backend_dir = os.path.join(root_dir, "backend")
+ROOT_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = ROOT_DIR / "backend"
 
-for path in (backend_dir, root_dir, current_dir):
-    if path not in sys.path:
-        sys.path.insert(0, path)
+for p in (str(BACKEND_DIR), str(ROOT_DIR)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-os.environ.setdefault("PYTHONPATH", backend_dir)
+os.environ.setdefault("PYTHONPATH", str(BACKEND_DIR))
 
 try:
     from app.main import app
-except Exception as e:
-    err_tb = traceback.format_exc()
+except Exception as _init_err:
+    _err_tb = traceback.format_exc()
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
 
@@ -28,8 +28,8 @@ except Exception as e:
             status_code=500,
             content={
                 "error": "FastAPI Initialization Failed on Vercel",
-                "detail": str(e),
-                "traceback": err_tb,
-                "root_dir_contents": os.listdir(root_dir) if os.path.exists(root_dir) else []
+                "detail": str(_init_err),
+                "traceback": _err_tb,
+                "root_dir_contents": os.listdir(str(ROOT_DIR)) if ROOT_DIR.exists() else []
             }
         )

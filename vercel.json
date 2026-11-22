@@ -5,7 +5,7 @@
   "outputDirectory": "frontend/dist",
   "framework": "vite",
   "functions": {
-    "api/**/*.py": {
+    "api/index.py": {
       "maxDuration": 60,
       "memory": 1024,
       "excludeFiles": "{frontend/**,node_modules/**,storage/**,test_resumes*/**,backups/**,screenshots/**,*.md,*.db,*.sqlite3,*.bak,docs/**,sample_jobs/**}"

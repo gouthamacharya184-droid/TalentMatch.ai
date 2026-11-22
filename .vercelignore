@@ -1,0 +1,14 @@
+# Vercel Deployment Ignore Rules
+# Exclude heavy testing datasets, local node_modules, and local backups
+frontend/node_modules
+storage/uploads/*
+!storage/uploads/.gitkeep
+test_resumes_50
+test_resumes_edge_cases
+backups
+screenshots
+docs
+sample_jobs
+*.db
+*.sqlite3
+*.bak
