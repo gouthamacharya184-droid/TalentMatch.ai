@@ -1,7 +1,45 @@
 import os
+import tempfile
+import uuid
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
+
+
+def _resolve_safe_upload_dir(raw_path: Optional[str] = None) -> str:
+    """Ensure upload directory is writable, falling back to /tmp in serverless or read-only environments."""
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("LAMBDA_TASK_ROOT")
+    )
+    if is_serverless:
+        tmp = os.path.join(tempfile.gettempdir(), "talentmatch_uploads")
+        try:
+            os.makedirs(tmp, exist_ok=True)
+            return tmp
+        except Exception:
+            return tempfile.gettempdir()
+
+    candidate = raw_path or os.environ.get("UPLOAD_DIR") or os.path.join(
+        os.path.dirname(__file__), "../../../storage/uploads"
+    )
+    try:
+        abs_path = os.path.abspath(candidate)
+        os.makedirs(abs_path, exist_ok=True)
+        # Test write permission
+        test_file = os.path.join(abs_path, f".test_{uuid.uuid4().hex[:6]}")
+        with open(test_file, "w") as f:
+            f.write("1")
+        os.remove(test_file)
+        return abs_path
+    except Exception:
+        fallback = os.path.join(tempfile.gettempdir(), "talentmatch_uploads")
+        try:
+            os.makedirs(fallback, exist_ok=True)
+            return fallback
+        except Exception:
+            return tempfile.gettempdir()
 
 
 class Settings(BaseSettings):
@@ -25,13 +63,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # File Storage
-    default_upload: str = "/tmp/uploads" if os.environ.get("VERCEL") else os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../storage/uploads")
-    )
-    UPLOAD_DIR: str = Field(default=default_upload, description="Directory for uploaded resumes")
+    UPLOAD_DIR: str = Field(default_factory=_resolve_safe_upload_dir, description="Directory for uploaded resumes")
     MAX_FILE_SIZE_MB: float = 4.5 if os.environ.get("VERCEL") else 15.0
     MAX_BATCH_SIZE: int = 50
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".txt"]
+
+    @field_validator("UPLOAD_DIR", mode="after")
+    @classmethod
+    def validate_upload_dir(cls, v: str) -> str:
+        return _resolve_safe_upload_dir(v)
     
     # Vercel Blob Storage Integration
     BLOB_READ_WRITE_TOKEN: Optional[str] = Field(

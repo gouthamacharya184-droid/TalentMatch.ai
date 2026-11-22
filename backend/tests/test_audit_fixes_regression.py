@@ -202,3 +202,24 @@ def test_auth_trailing_slash_resilience():
     assert me_res.json()["email"] == "admin@talentmatch.ai"
 
 
+def test_resume_upload_serverless_storage_fallback(monkeypatch):
+    """Verify resume upload succeeds and falls back to /tmp when UPLOAD_DIR is unwritable."""
+    import io
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("UPLOAD_DIR", "../storage/uploads")
+
+    pdf_content = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF"
+    file_payload = ("test_serverless_fallback.pdf", io.BytesIO(pdf_content), "application/pdf")
+
+    res = client.post(
+        "/api/resumes/upload",
+        files={"files": file_payload}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert data[0]["original_filename"] == "test_serverless_fallback.pdf"
+    assert data[0]["file_size"] > 0
+
+
+

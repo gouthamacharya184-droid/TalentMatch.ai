@@ -1,4 +1,5 @@
 import os
+import tempfile
 import uuid
 import hashlib
 import logging
@@ -74,12 +75,18 @@ class ResumeService:
         ext = os.path.splitext(filename)[1].lower()
         unique_name = f"{uuid.uuid4()}{ext}"
 
+        upload_dir = settings.UPLOAD_DIR
         try:
-            os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-        except OSError:
-            pass
+            os.makedirs(upload_dir, exist_ok=True)
+            test_file = os.path.join(upload_dir, f".test_{uuid.uuid4().hex[:6]}")
+            with open(test_file, "w") as f:
+                f.write("1")
+            os.remove(test_file)
+        except Exception:
+            upload_dir = os.path.join(tempfile.gettempdir(), "talentmatch_uploads")
+            os.makedirs(upload_dir, exist_ok=True)
 
-        target_path = os.path.join(settings.UPLOAD_DIR, unique_name)
+        target_path = os.path.join(upload_dir, unique_name)
 
         try:
             content = await upload_file.read()

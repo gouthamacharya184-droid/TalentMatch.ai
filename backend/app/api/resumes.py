@@ -1,4 +1,5 @@
 import os
+import tempfile
 import uuid
 import shutil
 import logging
@@ -235,9 +236,11 @@ def download_resume(resume_id: str, db: Session = Depends(get_db)):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     allowed_roots = [
         os.path.realpath(settings.UPLOAD_DIR),
+        os.path.realpath(tempfile.gettempdir()),
         os.path.realpath(os.path.join(base_dir, "sample_resumes")),
         os.path.realpath(os.path.join(base_dir, "test_resumes_50")),
         os.path.realpath(os.path.join(base_dir, "test_resumes_edge_cases")),
+        os.path.realpath(os.path.join(base_dir, "backend/tests/fixtures")),
     ]
     if not any(real_path.startswith(root) for root in allowed_roots):
         raise HTTPException(status_code=403, detail="Access denied: file path is outside authorized storage directory.")
@@ -269,9 +272,11 @@ def view_resume(resume_id: str, db: Session = Depends(get_db)):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     allowed_roots = [
         os.path.realpath(settings.UPLOAD_DIR),
+        os.path.realpath(tempfile.gettempdir()),
         os.path.realpath(os.path.join(base_dir, "sample_resumes")),
         os.path.realpath(os.path.join(base_dir, "test_resumes_50")),
         os.path.realpath(os.path.join(base_dir, "test_resumes_edge_cases")),
+        os.path.realpath(os.path.join(base_dir, "backend/tests/fixtures")),
     ]
     if not any(real_path.startswith(root) for root in allowed_roots):
         raise HTTPException(status_code=403, detail="Access denied: file path is outside authorized storage directory.")
@@ -298,8 +303,9 @@ def delete_resume(resume_id: str, db: Session = Depends(get_db)):
     elif resume.file_path and os.path.exists(resume.file_path):
         real_path = os.path.realpath(resume.file_path)
         upload_root = os.path.realpath(settings.UPLOAD_DIR)
-        # Prevent deletion outside upload directory
-        if real_path.startswith(upload_root):
+        tmp_root = os.path.realpath(tempfile.gettempdir())
+        # Prevent deletion outside upload or temp directory
+        if real_path.startswith(upload_root) or real_path.startswith(tmp_root):
             try:
                 os.remove(real_path)
             except Exception:
