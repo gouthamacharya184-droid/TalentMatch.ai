@@ -160,6 +160,10 @@ STANDARD_JOBS = [
 
 def seed_database(db: Session, fast_mode: bool = False):
     """Seed initial demo users, realistic job descriptions, and candidate resumes."""
+    # Fast exit if database is already fully populated
+    if db.query(Candidate).count() >= 12 and db.query(Job).count() >= 6:
+        return
+
     # 1. Ensure demo users exist and credentials match demo fill buttons
     admin = db.query(User).filter(User.email == "admin@talentmatch.ai").first()
     if not admin:
@@ -225,47 +229,54 @@ def seed_database(db: Session, fast_mode: bool = False):
                 ))
     db.commit()
 
-    # Fast exit for cold starts or if database already populated with jobs
-    if fast_mode or db.query(Job).filter(Job.title == "Senior Full-Stack Engineer").count() > 0:
+    # Fast exit if database already populated with candidates
+    if db.query(Candidate).count() >= 12:
         return
 
     logger.info("Seeding realistic recruitment jobs and candidates...")
 
-    job1 = Job(
-        user_id=recruiter.id,
-        title="Senior Full-Stack Engineer",
-        company="AVOM Consultants",
-        location="Remote (US / Global)",
-        employment_type="Full-time",
-        min_experience=4.0,
-        education_req="Bachelor's Degree in Computer Science or related",
-        description="""We are seeking a Senior Full-Stack Engineer to architect and build high-performance web applications.
+    job1 = db.query(Job).filter(Job.title == "Senior Full-Stack Engineer").first()
+    if not job1:
+        job1 = Job(
+            id="00000000-0000-0000-0000-000000000107",
+            user_id=recruiter.id,
+            title="Senior Full-Stack Engineer",
+            company="AVOM Consultants",
+            location="Remote (US / Global)",
+            employment_type="Full-time",
+            min_experience=4.0,
+            education_req="Bachelor's Degree in Computer Science or related",
+            description="""We are seeking a Senior Full-Stack Engineer to architect and build high-performance web applications.
 The ideal candidate will have strong expertise in Python (FastAPI or Django) for robust REST API backend services, and modern React with TypeScript on the frontend.
 Experience with PostgreSQL database modeling, query optimization, Docker containerization, and AWS cloud deployment is essential.
 Familiarity with CI/CD automation, unit testing, and agile collaboration is required.
 Preferred skills include Redis caching, Tailwind CSS, and microservice architectures.""",
-        status="active"
-    )
-    db.add(job1)
+            status="active"
+        )
+        db.add(job1)
+        db.commit()
+        db.refresh(job1)
 
-    job2 = Job(
-        user_id=recruiter.id,
-        title="Lead AI & NLP Engineer",
-        company="Cognitive Systems Labs",
-        location="San Francisco, CA / Hybrid",
-        employment_type="Full-time",
-        min_experience=5.0,
-        education_req="Master's Degree in Computer Science or AI/ML",
-        description="""Join our team as Lead AI & NLP Engineer to design semantic matching algorithms, vector embeddings, and LLM applications.
+    job2 = db.query(Job).filter(Job.title == "Lead AI & NLP Engineer").first()
+    if not job2:
+        job2 = Job(
+            id="00000000-0000-0000-0000-000000000108",
+            user_id=recruiter.id,
+            title="Lead AI & NLP Engineer",
+            company="Cognitive Systems Labs",
+            location="San Francisco, CA / Hybrid",
+            employment_type="Full-time",
+            min_experience=5.0,
+            education_req="Master's Degree in Computer Science or AI/ML",
+            description="""Join our team as Lead AI & NLP Engineer to design semantic matching algorithms, vector embeddings, and LLM applications.
 Requirements: In-depth Python proficiency, deep learning architectures (PyTorch or TensorFlow), Hugging Face Transformers, Sentence Transformers, and spaCy.
 Hands-on experience with vector databases (Pinecone, Milvus or ChromaDB), RAG architectures, Scikit-learn, and MLOps pipelines (Docker, MLflow).
 Strong grasp of cosine similarity metrics, statistical testing, and scalable model serving under FastAPI.""",
-        status="active"
-    )
-    db.add(job2)
-    db.commit()
-    db.refresh(job1)
-    db.refresh(job2)
+            status="active"
+        )
+        db.add(job2)
+        db.commit()
+        db.refresh(job2)
 
     # Job 1 Requirements
     job1_reqs = [
@@ -281,8 +292,9 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
         ("Redis", "preferred", "databases"),
         ("CI/CD", "preferred", "cloud_devops"),
     ]
-    for name, cat, stype in job1_reqs:
-        db.add(JobRequirement(job_id=job1.id, skill_name=name, category=cat, skill_type=stype))
+    if db.query(JobRequirement).filter(JobRequirement.job_id == job1.id).count() == 0:
+        for name, cat, stype in job1_reqs:
+            db.add(JobRequirement(job_id=job1.id, skill_name=name, category=cat, skill_type=stype))
 
     # Job 2 Requirements
     job2_reqs = [
@@ -297,8 +309,9 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
         ("Hugging Face", "preferred", "ai_ml"),
         ("RAG", "preferred", "ai_ml"),
     ]
-    for name, cat, stype in job2_reqs:
-        db.add(JobRequirement(job_id=job2.id, skill_name=name, category=cat, skill_type=stype))
+    if db.query(JobRequirement).filter(JobRequirement.job_id == job2.id).count() == 0:
+        for name, cat, stype in job2_reqs:
+            db.add(JobRequirement(job_id=job2.id, skill_name=name, category=cat, skill_type=stype))
 
     db.commit()
 
@@ -458,7 +471,15 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
     }
 
     for idx, c_info in enumerate(sample_candidates):
+        cand_id = f"00000000-0000-0000-0000-0000000002{idx+1:02d}"
+        existing_cand = db.query(Candidate).filter(
+            (Candidate.id == cand_id) | (Candidate.email == c_info["email"])
+        ).first()
+        if existing_cand:
+            continue
+
         cand = Candidate(
+            id=cand_id,
             user_id=recruiter.id,
             name=c_info["name"],
             email=c_info["email"],

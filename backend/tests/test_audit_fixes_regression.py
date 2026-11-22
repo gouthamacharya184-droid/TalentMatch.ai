@@ -222,4 +222,45 @@ def test_resume_upload_serverless_storage_fallback(monkeypatch):
     assert data[0]["file_size"] > 0
 
 
+def test_cold_start_seeding_includes_candidate_pool(monkeypatch):
+    """Verify that serverless cold starts (fast_mode=True) populate the 12 candidate pool."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.database.session import Base
+    from app.models.all_models import Candidate, Job, User
+    from app.database.seed import seed_database
+
+    test_engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=test_engine)
+    TestSession = sessionmaker(bind=test_engine)
+    test_db = TestSession()
+
+    try:
+        # Run seed in serverless fast mode
+        seed_database(test_db, fast_mode=True)
+
+        assert test_db.query(User).count() >= 2
+        assert test_db.query(Job).count() >= 6
+        assert test_db.query(Candidate).count() >= 12
+
+        # Verify priority requisitions exist
+        job_titles = [j.title for j in test_db.query(Job).all()]
+        assert "AI Engineer" in job_titles
+        assert "ML Engineer" in job_titles
+        assert "Software Engineer" in job_titles
+
+        # Verify candidate pool has realistic records
+        cands = test_db.query(Candidate).all()
+        cand_names = [c.name for c in cands]
+        assert "Marcus Vance" in cand_names
+        assert "Elena Rostova" in cand_names
+
+        # Verify idempotency on second run
+        seed_database(test_db, fast_mode=True)
+        assert test_db.query(Candidate).count() >= 12
+    finally:
+        test_db.close()
+
+
+
 

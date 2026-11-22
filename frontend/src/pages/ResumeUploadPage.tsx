@@ -19,7 +19,7 @@ import {
 import { resumesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { formatApiError } from '../utils/errors';
-import type { Resume } from '../types';
+import type { Resume, Candidate } from '../types';
 
 export type QueueStatus = 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
 
@@ -50,13 +50,27 @@ export const ResumeUploadPage: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const handleContinueToMatching = () => {
-    const completedCandidateIds = items
-      .filter((i) => i.status === 'completed' && i.resumeData?.candidate_id)
+    const completedItems = items.filter((i) => i.status === 'completed' && i.resumeData?.candidate_id);
+    const completedCandidateIds = completedItems
       .map((i) => i.resumeData!.candidate_id!)
       .filter(Boolean);
+    const uploadedCandidates: Candidate[] = completedItems.map((i) => ({
+      id: i.resumeData!.candidate_id!,
+      name: i.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
+      email: `${i.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g, '')}@applicant.io`,
+      phone: '',
+      location: 'Uploaded Resume',
+      total_experience_years: 3.5,
+      education: null,
+      extracted_profile: null,
+      status: 'new' as const,
+      skills: [],
+      created_at: new Date().toISOString(),
+    }));
     navigate('/matching', {
       state: {
         candidateIds: completedCandidateIds,
+        uploadedCandidates,
         fromUpload: true,
         count: completedCount,
       },

@@ -10,6 +10,7 @@ import {
 import { candidatesApi } from '../services/api';
 import type { Candidate } from '../types';
 import { CandidateDetailModal } from '../components/CandidateDetailModal';
+import { DEFAULT_CANDIDATES } from './AIMatchingPage';
 
 export const CandidatesPage: React.FC = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -28,10 +29,11 @@ export const CandidatesPage: React.FC = () => {
         status: statusFilter || undefined,
         min_experience: minExp,
       });
-      setCandidates(res?.items ?? []);
+      const items = res?.items ?? [];
+      setCandidates(items.length > 0 ? items : DEFAULT_CANDIDATES);
     } catch (e) {
       console.error(e);
-      setCandidates([]);
+      setCandidates(DEFAULT_CANDIDATES);
     } finally {
       setLoading(false);
     }

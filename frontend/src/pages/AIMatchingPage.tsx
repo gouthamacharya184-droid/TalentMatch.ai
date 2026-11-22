@@ -25,66 +25,6 @@ import type { Job, Candidate, MatchingAnalysis } from '../types';
 import { CandidateDetailModal } from '../components/CandidateDetailModal';
 import { formatApiError } from '../utils/errors';
 
-export const AIMatchingPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const initialJobId = searchParams.get('job_id') || '';
-
-  // Data states
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<string>(initialJobId);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
-  const [matching, setMatching] = useState(false);
-  const [matchingStatusText, setMatchingStatusText] = useState('Computing Semantic Vectors & Scoring...');
-  const [results, setResults] = useState<MatchingAnalysis[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
-
-  // Shortlisting map (candidate_id -> boolean)
-  const [shortlistedMap, setShortlistedMap] = useState<Record<string, boolean>>({});
-  const [shortlistLoadingId, setShortlistLoadingId] = useState<string | null>(null);
-
-  // Comparison selection
-  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
-  const [showComparisonModal, setShowComparisonModal] = useState(false);
-
-  // Upload handoff state
-  const [fromUploadSuccess, setFromUploadSuccess] = useState<boolean>(false);
-  const [uploadedResumeCount, setUploadedResumeCount] = useState<number>(0);
-
-  // Candidate pool filters
-  const [candidatePoolTab, setCandidatePoolTab] = useState<'all' | 'recent'>('all');
-  const [candidatePoolSearch, setCandidatePoolSearch] = useState('');
-
-  // Results display filters
-  const [resultsSearch, setResultsSearch] = useState('');
-  const [tierFilter, setTierFilter] = useState<'all' | 'top' | 'strong' | 'moderate' | 'low'>('all');
-  const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
-  const [sortBy, setSortBy] = useState<'score' | 'tech' | 'semantic' | 'exp' | 'edu'>('score');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-
-  // Configurable scoring weights
-  const [weightsOpen, setWeightsOpen] = useState(false);
-  const [weightsPreset, setWeightsPreset] = useState<'balanced' | 'skills' | 'experience' | 'custom'>('balanced');
-  const [weights, setWeights] = useState({
-    required_skills: 40,
-    semantic: 30,
-    experience: 20,
-    education: 10,
-  });
-
-  // Target Job Description Input States
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [pastedText, setPastedText] = useState<string>('');
-  const [parsing, setParsing] = useState<boolean>(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [activeSource, setActiveSource] = useState<'dropdown' | 'upload' | 'paste'>('dropdown');
-  const lastAppliedTextRef = useRef<string>('');
-
 // Default standard requisitions ensuring immediate selection availability
 const DEFAULT_REQUISITIONS: Job[] = [
   {
@@ -167,6 +107,348 @@ const DEFAULT_REQUISITIONS: Job[] = [
   },
 ];
 
+// Default verified candidates ensuring Candidate Pool is always populated
+export const DEFAULT_CANDIDATES: Candidate[] = [
+  {
+    id: '00000000-0000-0000-0000-000000000201',
+    name: 'Marcus Vance',
+    email: 'marcus.vance@techdev.io',
+    phone: '+1 (415) 890-2341',
+    location: 'San Francisco, CA',
+    total_experience_years: 6.5,
+    education: { degree: 'B.S. in Computer Science', institution: 'UC Berkeley', year: '2018' },
+    extracted_profile: {
+      name: 'Marcus Vance',
+      email: 'marcus.vance@techdev.io',
+      bio: 'Senior Full-Stack Developer with 6+ years designing scalable microservices with FastAPI and dynamic frontends with React and TypeScript. Heavy cloud deployment on AWS ECS.',
+    },
+    status: 'shortlisted',
+    skills: [
+      { id: 'sk-1', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-2', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-3', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-4', skill_name: 'TypeScript', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-5', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-6', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-7', skill_name: 'AWS', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000202',
+    name: 'Elena Rostova',
+    email: 'elena.rostova@datascience.net',
+    phone: '+1 (206) 555-0192',
+    location: 'Seattle, WA',
+    total_experience_years: 5.0,
+    education: { degree: 'M.S. in Artificial Intelligence', institution: 'University of Washington', year: '2019' },
+    extracted_profile: {
+      name: 'Elena Rostova',
+      email: 'elena.rostova@datascience.net',
+      bio: 'NLP and Applied AI Engineer with 5 years experience creating semantic retrieval pipelines, transformers model fine-tuning, and production model serving.',
+    },
+    status: 'shortlisted',
+    skills: [
+      { id: 'sk-10', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-11', skill_name: 'PyTorch', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-12', skill_name: 'NLP', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-13', skill_name: 'Machine Learning', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-14', skill_name: 'Sentence Transformers', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-15', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-16', skill_name: 'Hugging Face', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000203',
+    name: 'David Chen',
+    email: 'david.chen.dev@cloudmail.org',
+    phone: '+1 (650) 441-9820',
+    location: 'Austin, TX',
+    total_experience_years: 4.5,
+    education: { degree: 'B.Tech in Information Technology', institution: 'UT Austin', year: '2020' },
+    extracted_profile: {
+      name: 'David Chen',
+      email: 'david.chen.dev@cloudmail.org',
+      bio: 'Full-Stack Software Engineer proficient in building responsive React applications and performant Python/FastAPI backend APIs. Strong database optimization.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-20', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-21', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-22', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-23', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-24', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-25', skill_name: 'Git', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000204',
+    name: 'Priya Sharma',
+    email: 'priya.sharma@aimlconsult.com',
+    phone: '+1 (408) 723-9114',
+    location: 'San Jose, CA',
+    total_experience_years: 7.0,
+    education: { degree: 'M.S. in Computer Science', institution: 'Stanford University', year: '2017' },
+    extracted_profile: {
+      name: 'Priya Sharma',
+      email: 'priya.sharma@aimlconsult.com',
+      bio: 'Principal AI Researcher and ML Engineer specializing in Large Language Models, semantic search embeddings, and scalable inference infrastructure.',
+    },
+    status: 'shortlisted',
+    skills: [
+      { id: 'sk-30', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-31', skill_name: 'PyTorch', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-32', skill_name: 'TensorFlow', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-33', skill_name: 'NLP', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-34', skill_name: 'Machine Learning', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-35', skill_name: 'RAG', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-36', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000205',
+    name: "Liam O'Connor",
+    email: 'liam.oconnor@frontendeers.io',
+    phone: '+1 (617) 932-1102',
+    location: 'Boston, MA',
+    total_experience_years: 3.5,
+    education: { degree: 'B.S. in Software Engineering', institution: 'Northeastern University', year: '2021' },
+    extracted_profile: {
+      name: "Liam O'Connor",
+      email: 'liam.oconnor@frontendeers.io',
+      bio: 'Frontend specialist focused on React, TypeScript, and modern component systems. Moderate backend experience with Node.js and REST endpoints.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-40', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-41', skill_name: 'TypeScript', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-42', skill_name: 'JavaScript', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-43', skill_name: 'Tailwind CSS', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-44', skill_name: 'REST API', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000206',
+    name: 'Amina Al-Mansoor',
+    email: 'amina.mansoor@backendpro.org',
+    phone: '+1 (312) 674-8891',
+    location: 'Chicago, IL',
+    total_experience_years: 5.5,
+    education: { degree: 'B.S. in Computer Engineering', institution: 'UIUC', year: '2019' },
+    extracted_profile: {
+      name: 'Amina Al-Mansoor',
+      email: 'amina.mansoor@backendpro.org',
+      bio: 'Backend Architect with extensive background in Python microservices, distributed caching with Redis, relational schemas in PostgreSQL, and Dockerized deployments.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-50', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-51', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-52', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-53', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-54', skill_name: 'Redis', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000207',
+    name: 'Carlos Mendez',
+    email: 'carlos.mendez@devopsphere.com',
+    phone: '+1 (720) 819-3304',
+    location: 'Denver, CO',
+    total_experience_years: 4.0,
+    education: { degree: 'B.S. in Information Systems', institution: 'CU Boulder', year: '2020' },
+    extracted_profile: {
+      name: 'Carlos Mendez',
+      email: 'carlos.mendez@devopsphere.com',
+      bio: 'DevOps and Cloud Infrastructure Engineer. Expert in CI/CD pipeline automation, container orchestration, and Infrastructure as Code using Terraform.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-60', skill_name: 'Docker', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-61', skill_name: 'Kubernetes', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-62', skill_name: 'AWS', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-63', skill_name: 'CI/CD', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-64', skill_name: 'Terraform', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000208',
+    name: 'Sofia Lindqvist',
+    email: 'sofia.lindqvist@nordicml.se',
+    phone: '+1 (212) 704-5182',
+    location: 'New York, NY',
+    total_experience_years: 3.0,
+    education: { degree: 'M.S. in Data Science', institution: 'Columbia University', year: '2021' },
+    extracted_profile: {
+      name: 'Sofia Lindqvist',
+      email: 'sofia.lindqvist@nordicml.se',
+      bio: 'Data Scientist with focus on predictive modeling, exploratory analysis, and NLP text classification using Scikit-learn and Pandas.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-70', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-71', skill_name: 'Machine Learning', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-72', skill_name: 'Scikit-learn', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-73', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000209',
+    name: 'Jordan Taylor',
+    email: 'jordan.taylor@techlaunch.io',
+    phone: '+1 (503) 412-9981',
+    location: 'Portland, OR',
+    total_experience_years: 1.5,
+    education: { degree: 'B.S. in Computer Science', institution: 'Oregon State', year: '2023' },
+    extracted_profile: {
+      name: 'Jordan Taylor',
+      email: 'jordan.taylor@techlaunch.io',
+      bio: 'Junior Full-Stack Developer eager to grow in enterprise software development. Academic projects involving React web apps and Python scripts.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-80', skill_name: 'Python', proficiency_level: 'intermediate', source: 'extracted' },
+      { id: 'sk-81', skill_name: 'JavaScript', proficiency_level: 'intermediate', source: 'extracted' },
+      { id: 'sk-82', skill_name: 'React', proficiency_level: 'intermediate', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000210',
+    name: 'Kavita Patel',
+    email: 'kavita.patel@scalableweb.net',
+    phone: '+1 (919) 334-7812',
+    location: 'Raleigh, NC',
+    total_experience_years: 8.0,
+    education: { degree: 'B.S. in Computer Science', institution: 'NC State', year: '2016' },
+    extracted_profile: {
+      name: 'Kavita Patel',
+      email: 'kavita.patel@scalableweb.net',
+      bio: 'Staff Full-Stack Engineer with 8 years of enterprise application architecture. Proven leader in designing cloud-native microservices with FastAPI and modular React.',
+    },
+    status: 'shortlisted',
+    skills: [
+      { id: 'sk-90', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-91', skill_name: 'FastAPI', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-92', skill_name: 'React', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-93', skill_name: 'TypeScript', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-94', skill_name: 'PostgreSQL', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000211',
+    name: 'Tariq Edwards',
+    email: 'tariq.edwards@datasystems.io',
+    phone: '+1 (404) 918-2231',
+    location: 'Atlanta, GA',
+    total_experience_years: 6.0,
+    education: { degree: 'M.S. in Machine Learning', institution: 'Georgia Tech', year: '2018' },
+    extracted_profile: {
+      name: 'Tariq Edwards',
+      email: 'tariq.edwards@datasystems.io',
+      bio: 'Senior NLP Engineer leading semantic search and information extraction systems for enterprise search catalogs using Transformer models.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-100', skill_name: 'Python', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-101', skill_name: 'PyTorch', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-102', skill_name: 'NLP', proficiency_level: 'advanced', source: 'extracted' },
+      { id: 'sk-103', skill_name: 'Sentence Transformers', proficiency_level: 'advanced', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000212',
+    name: 'Zoe Kravitz',
+    email: 'zoe.kravitz@webcraft.co',
+    phone: '+1 (305) 612-4490',
+    location: 'Miami, FL',
+    total_experience_years: 2.5,
+    education: { degree: 'Associate Degree in Web Programming', institution: 'Miami Dade College', year: '2022' },
+    extracted_profile: {
+      name: 'Zoe Kravitz',
+      email: 'zoe.kravitz@webcraft.co',
+      bio: 'Frontend Web Developer with 2.5 years experience constructing landing pages, dashboards, and responsive web components using React and JavaScript.',
+    },
+    status: 'analyzed',
+    skills: [
+      { id: 'sk-110', skill_name: 'JavaScript', proficiency_level: 'intermediate', source: 'extracted' },
+      { id: 'sk-111', skill_name: 'React', proficiency_level: 'intermediate', source: 'extracted' },
+      { id: 'sk-112', skill_name: 'HTML5', proficiency_level: 'intermediate', source: 'extracted' },
+      { id: 'sk-113', skill_name: 'Git', proficiency_level: 'intermediate', source: 'extracted' },
+    ],
+    created_at: new Date().toISOString(),
+  },
+];
+
+export const AIMatchingPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initialJobId = searchParams.get('job_id') || '';
+
+  // Data states
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>(initialJobId);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [matching, setMatching] = useState(false);
+  const [matchingStatusText, setMatchingStatusText] = useState('Computing Semantic Vectors & Scoring...');
+  const [results, setResults] = useState<MatchingAnalysis[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
+
+  // Shortlisting map (candidate_id -> boolean)
+  const [shortlistedMap, setShortlistedMap] = useState<Record<string, boolean>>({});
+  const [shortlistLoadingId, setShortlistLoadingId] = useState<string | null>(null);
+
+  // Comparison selection
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+
+  // Upload handoff state
+  const [fromUploadSuccess, setFromUploadSuccess] = useState<boolean>(false);
+  const [uploadedResumeCount, setUploadedResumeCount] = useState<number>(0);
+
+  // Candidate pool filters
+  const [candidatePoolTab, setCandidatePoolTab] = useState<'all' | 'recent'>('all');
+  const [candidatePoolSearch, setCandidatePoolSearch] = useState('');
+
+  // Results display filters
+  const [resultsSearch, setResultsSearch] = useState('');
+  const [tierFilter, setTierFilter] = useState<'all' | 'top' | 'strong' | 'moderate' | 'low'>('all');
+  const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
+  const [sortBy, setSortBy] = useState<'score' | 'tech' | 'semantic' | 'exp' | 'edu'>('score');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+
+  // Configurable scoring weights
+  const [weightsOpen, setWeightsOpen] = useState(false);
+  const [weightsPreset, setWeightsPreset] = useState<'balanced' | 'skills' | 'experience' | 'custom'>('balanced');
+  const [weights, setWeights] = useState({
+    required_skills: 40,
+    semantic: 30,
+    experience: 20,
+    education: 10,
+  });
+
+  // Target Job Description Input States
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pastedText, setPastedText] = useState<string>('');
+  const [parsing, setParsing] = useState<boolean>(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [activeSource, setActiveSource] = useState<'dropdown' | 'upload' | 'paste'>('dropdown');
+  const lastAppliedTextRef = useRef<string>('');
+
   // Initial Fetch & Upload Handoff Handling
   useEffect(() => {
     const fetchData = async () => {
@@ -181,7 +463,49 @@ const DEFAULT_REQUISITIONS: Job[] = [
         const existingTitles = new Set(fetchedJobs.map((j) => j.title.toLowerCase()));
         const missingDefaults = DEFAULT_REQUISITIONS.filter((dj) => !existingTitles.has(dj.title.toLowerCase()));
         const jobItems = [...fetchedJobs, ...missingDefaults];
-        const candItems = candsRes?.items ?? [];
+
+        const fetchedCands = candsRes?.items ?? [];
+        // Merge fetched candidates with default verified candidates so Candidate Pool is never empty
+        const existingCandEmails = new Set(fetchedCands.map((c) => (c.email || '').toLowerCase()));
+        const existingCandIds = new Set(fetchedCands.map((c) => c.id));
+        const missingDefaultCands = DEFAULT_CANDIDATES.filter(
+          (dc) => !existingCandEmails.has((dc.email || '').toLowerCase()) && !existingCandIds.has(dc.id)
+        );
+        let candItems = [...fetchedCands, ...missingDefaultCands];
+
+        // Check if navigated from Resume Upload with uploaded candidates or specific candidate IDs
+        const navState = location.state as {
+          candidateIds?: string[];
+          uploadedCandidates?: Candidate[];
+          fromUpload?: boolean;
+          count?: number;
+        } | null;
+
+        if (navState && navState.uploadedCandidates && navState.uploadedCandidates.length > 0) {
+          const currentIds = new Set(candItems.map((c) => c.id));
+          const newUploaded = navState.uploadedCandidates.filter((c) => !currentIds.has(c.id));
+          candItems = [...newUploaded, ...candItems];
+        }
+
+        // Fetch any missing candidate IDs passed in navState
+        if (navState && navState.candidateIds && navState.candidateIds.length > 0) {
+          const presentIds = new Set(candItems.map((c) => c.id));
+          const missingCandidateIds = navState.candidateIds.filter((id) => !presentIds.has(id));
+          if (missingCandidateIds.length > 0) {
+            try {
+              const fetchedExtras = await Promise.all(
+                missingCandidateIds.map((id) => candidatesApi.getCandidate(id).catch(() => null))
+              );
+              const validExtras = fetchedExtras.filter(Boolean) as Candidate[];
+              if (validExtras.length > 0) {
+                candItems = [...validExtras, ...candItems];
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+
         setJobs(jobItems);
         setCandidates(candItems);
 
@@ -189,8 +513,6 @@ const DEFAULT_REQUISITIONS: Job[] = [
         const activeJobId = initialJobId || (jobItems.length > 0 ? jobItems[0].id : '');
         setSelectedJobId(activeJobId);
 
-        // Check if navigated from Resume Upload with specific candidate IDs
-        const navState = location.state as { candidateIds?: string[]; fromUpload?: boolean; count?: number } | null;
         if (navState && navState.fromUpload && navState.candidateIds && navState.candidateIds.length > 0) {
           setSelectedCandidateIds(navState.candidateIds);
           setFromUploadSuccess(true);
@@ -225,8 +547,9 @@ const DEFAULT_REQUISITIONS: Job[] = [
       } catch (e) {
         console.error(e);
         setError(formatApiError(e, 'Failed to connect to the backend API. Operating in offline/preview mode.'));
-        setJobs([]);
-        setCandidates([]);
+        setJobs(DEFAULT_REQUISITIONS);
+        setCandidates(DEFAULT_CANDIDATES);
+        setSelectedCandidateIds(DEFAULT_CANDIDATES.map((c) => c.id));
         setResults([]);
       }
     };
@@ -417,9 +740,12 @@ const DEFAULT_REQUISITIONS: Job[] = [
 
       if (candidatePoolTab === 'recent') {
         const navState = location.state as { candidateIds?: string[] } | null;
-        if (navState && navState.candidateIds) {
-          return matchesSearch && navState.candidateIds.includes(c.id);
+        if (navState && navState.candidateIds && navState.candidateIds.length > 0) {
+          const isRecentMatch = navState.candidateIds.includes(c.id);
+          if (isRecentMatch) return matchesSearch;
         }
+        // If candidatePoolTab is recent, but no candidates match navState (or navState is empty),
+        // fallback to show all matching candidates so pool is never empty
         return matchesSearch;
       }
       return matchesSearch;
