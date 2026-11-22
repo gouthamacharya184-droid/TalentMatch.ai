@@ -6,19 +6,26 @@ import { formatApiError } from '../utils/errors';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user, token, authError, clearAuthError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    if (user && token) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, token, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearAuthError();
     setError(null);
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(formatApiError(err, 'Invalid email or password.'));
     } finally {
@@ -27,14 +34,20 @@ export const LoginPage: React.FC = () => {
   };
 
   const fillDemoRecruiter = () => {
+    clearAuthError();
+    setError(null);
     setEmail('recruiter@talentmatch.ai');
     setPassword('Recruiter@123456');
   };
 
   const fillDemoAdmin = () => {
+    clearAuthError();
+    setError(null);
     setEmail('admin@talentmatch.ai');
     setPassword('Admin@123456');
   };
+
+  const displayError = error || authError;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
@@ -50,10 +63,10 @@ export const LoginPage: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 shadow-xl shadow-slate-200/50 rounded-3xl border border-slate-200 sm:px-10">
-          {error && (
+          {displayError && (
             <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+              <span>{displayError}</span>
             </div>
           )}
 

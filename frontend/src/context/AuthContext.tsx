@@ -7,6 +7,8 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   isOffline: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
   login: (email: string, pass: string) => Promise<void>;
   register: (name: string, email: string, pass: string, role?: string) => Promise<void>;
   logout: () => void;
@@ -14,22 +16,25 @@ interface AuthContextType {
   checkBackendHealth: () => Promise<boolean>;
 }
 
-const DEFAULT_DEMO_USER: User = {
-  id: 'usr_recruiter_demo',
-  email: 'recruiter@talentmatch.ai',
-  full_name: 'Sarah Jenkins (Senior Recruiter)',
-  role: 'recruiter',
-  is_active: true,
-  created_at: new Date().toISOString(),
-};
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('access_token'));
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('access_token'));
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState<boolean>(() => Boolean(localStorage.getItem('access_token')));
   const [isOffline, setIsOffline] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
 
   const checkBackendHealth = useCallback(async (): Promise<boolean> => {
     try {
@@ -48,64 +53,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initAuth = async () => {
       const savedToken = localStorage.getItem('access_token');
-      const explicitLogout = sessionStorage.getItem('talentmatch_logged_out') === 'true';
 
-      // 1. If we have a saved token, try verifying it
       if (savedToken) {
         try {
           const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth init timeout')), 5000)
+            setTimeout(() => reject(new Error('Auth verification timeout')), 6000)
           );
           const me = await Promise.race([authApi.getMe(), timeoutPromise]);
           if (isMounted) {
             setUser(me);
+            localStorage.setItem('user', JSON.stringify(me));
             setToken(savedToken);
             setIsOffline(false);
             setLoading(false);
             return;
           }
-        } catch {
-          // Token invalid or backend temporarily slow
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('user');
-        }
-      }
-
-      // 2. If no valid token and user has NOT explicitly clicked logout:
-      // Seamlessly authenticate with default demo recruiter so /resumes/upload and all routes work out-of-the-box!
-      if (!explicitLogout) {
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Demo login timeout')), 4000)
-          );
-          const res = await Promise.race([
-            authApi.login({ email: 'recruiter@talentmatch.ai', password: 'Recruiter@123456' }),
-            timeoutPromise,
-          ]);
-          if (isMounted) {
-            localStorage.setItem('access_token', res.access_token);
-            setToken(res.access_token);
-            setUser(res.user);
-            setIsOffline(false);
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // Backend might be offline or initializing - fall back gracefully
-          if (isMounted) {
-            setIsOffline(true);
-            setUser(DEFAULT_DEMO_USER);
-            setToken('demo_offline_token');
-            setLoading(false);
-            return;
+        } catch (err: any) {
+          const reason = err?.response?.data?.detail || err?.message || 'Authentication required';
+          if (err?.response?.status === 401) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            if (isMounted) {
+              setToken(null);
+              setUser(null);
+              setAuthError(`Session expired: ${reason}. Please sign in.`);
+            }
           }
         }
       }
 
-      // 3. If explicit logout was set, stay logged out
       if (isMounted) {
-        setToken(null);
-        setUser(null);
         setLoading(false);
       }
     };
@@ -113,10 +91,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
 
     // Listen for 401 unauthorized events from api interceptor
-    const handleUnauthorized = () => {
+    const handleUnauthorized = (e: any) => {
       if (isMounted) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
         setUser(null);
         setToken(null);
+        setAuthError(e?.detail?.message || 'Session expired. Please log in again.');
       }
     };
     window.addEventListener('talentmatch:unauthorized', handleUnauthorized);
@@ -129,20 +111,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string) => {
     sessionStorage.removeItem('talentmatch_logged_out');
-    const res = await authApi.login({ email, password: pass });
+    setAuthError(null);
+    const res = await authApi.login({ email: email.trim(), password: pass });
+    if (!res || !res.access_token || !res.user) {
+      throw new Error('Authentication response is missing access token or user profile.');
+    }
     localStorage.setItem('access_token', res.access_token);
+    if (res.refresh_token) {
+      localStorage.setItem('refresh_token', res.refresh_token);
+    }
+    localStorage.setItem('user', JSON.stringify(res.user));
     setToken(res.access_token);
     setUser(res.user);
     setIsOffline(false);
+    setLoading(false);
   };
 
   const register = async (name: string, email: string, pass: string, role?: string) => {
     sessionStorage.removeItem('talentmatch_logged_out');
-    const res = await authApi.register({ full_name: name, email, password: pass, role });
+    setAuthError(null);
+    const res = await authApi.register({ full_name: name.trim(), email: email.trim(), password: pass, role });
+    if (!res || !res.access_token || !res.user) {
+      throw new Error('Registration response is missing access token or user profile.');
+    }
     localStorage.setItem('access_token', res.access_token);
+    if (res.refresh_token) {
+      localStorage.setItem('refresh_token', res.refresh_token);
+    }
+    localStorage.setItem('user', JSON.stringify(res.user));
     setToken(res.access_token);
     setUser(res.user);
     setIsOffline(false);
+    setLoading(false);
   };
 
   const logout = () => {
@@ -153,13 +153,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // ignore network errors on logout
     }
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    setAuthError(null);
+    setLoading(false);
   };
 
   const updateUser = (u: User) => {
     setUser(u);
+    localStorage.setItem('user', JSON.stringify(u));
   };
 
   return (
@@ -169,6 +173,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         loading,
         isOffline,
+        authError,
+        clearAuthError,
         login,
         register,
         logout,

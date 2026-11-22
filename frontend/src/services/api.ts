@@ -57,7 +57,9 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (res) => res,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url || '';
+    // Do not trigger global logout event when testing credentials on the login endpoint itself
+    if (error.response?.status === 401 && !url.includes('/auth/login')) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
       window.dispatchEvent(new CustomEvent('talentmatch:unauthorized'));

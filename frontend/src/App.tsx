@@ -76,6 +76,7 @@ export const App: React.FC = () => {
                 }
               >
                 <Route index element={<DashboardPage />} />
+                <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="resumes/upload" element={<ResumeUploadPage />} />
                 <Route path="matching" element={<AIMatchingPage />} />
                 <Route path="candidates" element={<CandidatesPage />} />

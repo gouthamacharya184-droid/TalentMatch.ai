@@ -60,6 +60,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
+    redirect_slashes=False,
 )
 
 # CORS Middleware with valid origins and credentials support
@@ -181,12 +182,11 @@ async def parse_job_description_endpoint(file: UploadFile = File(...)):
 
 @app.get("/health")
 def root_health_check():
+    user_count = 0
     db_status = "connected"
     try:
-        from sqlalchemy import text
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
+        from app.api.deps import ensure_db_initialized
+        user_count = ensure_db_initialized()
     except Exception as e:
         db_status = f"disconnected: {str(e)}"
 
@@ -196,18 +196,18 @@ def root_health_check():
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": "production" if is_prod else "development",
-        "database": db_status
+        "database": db_status,
+        "users": user_count
     }
 
 
 @app.get("/api/health")
 def api_health_check():
+    user_count = 0
     db_status = "connected"
     try:
-        from sqlalchemy import text
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
+        from app.api.deps import ensure_db_initialized
+        user_count = ensure_db_initialized()
     except Exception as e:
         db_status = f"disconnected: {str(e)}"
 
@@ -217,7 +217,8 @@ def api_health_check():
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": "production" if is_prod else "development",
-        "database": db_status
+        "database": db_status,
+        "users": user_count
     }
 
 

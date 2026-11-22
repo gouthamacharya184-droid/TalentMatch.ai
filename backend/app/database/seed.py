@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.orm import Session
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.all_models import (
     User,
     Job,
@@ -19,18 +19,17 @@ from app.ai_engine.insights import CandidateInsights
 
 logger = logging.getLogger(__name__)
 
+ADMIN_USER_ID = "00000000-0000-0000-0000-000000000001"
+RECRUITER_USER_ID = "00000000-0000-0000-0000-000000000002"
+
 
 def seed_database(db: Session, fast_mode: bool = False):
     """Seed initial demo users, realistic job descriptions, and candidate resumes."""
-    # Fast exit if database is already seeded to avoid heavy cold-start recomputations
-    if db.query(User).filter(User.email == "admin@talentmatch.ai").first():
-        logger.info("Database is already seeded. Skipping full seed cycle.")
-        return
-    
-    # 1. Seed Users
+    # 1. Ensure demo users exist and credentials match demo fill buttons
     admin = db.query(User).filter(User.email == "admin@talentmatch.ai").first()
     if not admin:
         admin = User(
+            id=ADMIN_USER_ID,
             email="admin@talentmatch.ai",
             hashed_password=hash_password("Admin@123456"),
             full_name="Alex Mercer (Super Admin)",
@@ -38,10 +37,16 @@ def seed_database(db: Session, fast_mode: bool = False):
             is_active=True
         )
         db.add(admin)
+    else:
+        if not verify_password("Admin@123456", admin.hashed_password):
+            admin.hashed_password = hash_password("Admin@123456")
+        admin.is_active = True
+        admin.role = "super_admin"
 
     recruiter = db.query(User).filter(User.email == "recruiter@talentmatch.ai").first()
     if not recruiter:
         recruiter = User(
+            id=RECRUITER_USER_ID,
             email="recruiter@talentmatch.ai",
             hashed_password=hash_password("Recruiter@123456"),
             full_name="Sarah Jenkins (Senior Recruiter)",
@@ -49,11 +54,15 @@ def seed_database(db: Session, fast_mode: bool = False):
             is_active=True
         )
         db.add(recruiter)
+    else:
+        if not verify_password("Recruiter@123456", recruiter.hashed_password):
+            recruiter.hashed_password = hash_password("Recruiter@123456")
+        recruiter.is_active = True
 
     db.commit()
 
-    # 2. Check if jobs exist
-    if db.query(Job).count() > 0:
+    # Fast exit for cold starts or if database already populated with jobs
+    if fast_mode or db.query(Job).count() > 0:
         return
 
     logger.info("Seeding realistic recruitment jobs and candidates...")

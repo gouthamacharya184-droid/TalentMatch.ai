@@ -33,6 +33,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=TokenResponse)
+@router.post("/register/", response_model=TokenResponse, include_in_schema=False)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == req.email.lower()).first()
     if existing:
@@ -53,7 +54,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    access_token = create_access_token(user.id, role=user.role)
+    access_token = create_access_token(user.id, role=user.role, email=user.email)
     refresh_token = create_refresh_token(user.id)
 
     NotificationService.log_activity(
@@ -74,8 +75,17 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
+@router.post("/login/", response_model=TokenResponse, include_in_schema=False)
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email.lower()).first()
+    email_clean = req.email.strip().lower()
+    user = db.query(User).filter(User.email == email_clean).first()
+    
+    # If demo account is requested but not in DB yet, seed and retry
+    if not user and email_clean in ("admin@talentmatch.ai", "recruiter@talentmatch.ai"):
+        from app.database.seed import seed_database
+        seed_database(db, fast_mode=True)
+        user = db.query(User).filter(User.email == email_clean).first()
+
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -91,7 +101,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     user.last_login = datetime.now(timezone.utc)
     db.commit()
 
-    access_token = create_access_token(user.id, role=user.role)
+    access_token = create_access_token(user.id, role=user.role, email=user.email)
     refresh_token = create_refresh_token(user.id)
 
     NotificationService.log_activity(
@@ -253,6 +263,7 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
+@router.get("/me/", response_model=UserResponse, include_in_schema=False)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 

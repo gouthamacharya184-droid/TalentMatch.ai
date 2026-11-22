@@ -13,25 +13,58 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 _db_initialized = False
 
 
+def ensure_db_initialized() -> int:
+    """Ensure database schema is created and demo users are seeded. Returns user count."""
+    global _db_initialized
+    from app.database.session import Base, engine
+    from app.database.seed import seed_database
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
+
+    init_db = SessionLocal()
+    try:
+        seed_database(init_db, fast_mode=True)
+        count = init_db.query(User).count()
+        _db_initialized = True
+        return count
+    except Exception:
+        return 0
+    finally:
+        init_db.close()
+
+
 def get_db() -> Generator:
     global _db_initialized
     if not _db_initialized:
-        try:
-            from app.database.session import Base, engine
-            from app.database.seed import seed_database
-            Base.metadata.create_all(bind=engine)
-            init_db = SessionLocal()
-            seed_database(init_db, fast_mode=True)
-            init_db.close()
-        except Exception:
-            pass
-        _db_initialized = True
+        ensure_db_initialized()
 
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def _resolve_user_from_payload(db: Session, payload: dict) -> Optional[User]:
+    user_id = payload.get("sub")
+    email = payload.get("email")
+
+    user = None
+    if user_id:
+        user = db.query(User).filter(User.id == user_id).first()
+
+    if not user and email:
+        user = db.query(User).filter(User.email == email.lower()).first()
+
+    # If demo user in ephemeral container was cleared, re-seed and retry
+    if not user and email in ("admin@talentmatch.ai", "recruiter@talentmatch.ai"):
+        from app.database.seed import seed_database
+        seed_database(db, fast_mode=True)
+        user = db.query(User).filter(User.email == email.lower()).first()
+
+    return user
 
 
 def get_current_user(
@@ -64,8 +97,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _resolve_user_from_payload(db, payload)
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,8 +118,7 @@ def get_optional_current_user(
     if not payload:
         return None
 
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _resolve_user_from_payload(db, payload)
     return user if user and user.is_active else None
 
 
