@@ -126,11 +126,11 @@ export const DashboardPage: React.FC = () => {
         {/* Quick Action Buttons */}
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => navigate('/jobs')}
+            onClick={() => navigate('/matching')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
           >
             <Briefcase className="w-3.5 h-3.5 text-blue-600" />
-            <span>Post Job</span>
+            <span>AI Matching</span>
           </button>
           <button
             onClick={() => navigate('/resumes/upload')}
@@ -297,10 +297,10 @@ export const DashboardPage: React.FC = () => {
               <p className="text-xs text-slate-500">Jobs ready for resume matching</p>
             </div>
             <button
-              onClick={() => navigate('/jobs')}
+              onClick={() => navigate('/matching')}
               className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
-              <span>View all</span>
+              <span>View all in Matching</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -328,10 +328,10 @@ export const DashboardPage: React.FC = () => {
                 <p className="text-xs font-medium text-slate-600">No active job openings</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">Create your first role to start matching</p>
                 <button
-                  onClick={() => navigate('/jobs')}
+                  onClick={() => navigate('/matching')}
                   className="mt-3 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition-colors"
                 >
-                  Post a Job
+                  Go to AI Matching
                 </button>
               </div>
             )}

@@ -19,12 +19,10 @@ const PageLoadingFallback: React.FC = () => (
 
 // Lazy-Loaded Pages for High Performance & Code Splitting
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const JobsPage = React.lazy(() => import('./pages/JobsPage').then(m => ({ default: m.JobsPage })));
 const ResumeUploadPage = React.lazy(() => import('./pages/ResumeUploadPage').then(m => ({ default: m.ResumeUploadPage })));
 const AIMatchingPage = React.lazy(() => import('./pages/AIMatchingPage').then(m => ({ default: m.AIMatchingPage })));
 const CandidatesPage = React.lazy(() => import('./pages/CandidatesPage').then(m => ({ default: m.CandidatesPage })));
 const CandidateRankingPage = React.lazy(() => import('./pages/CandidateRankingPage').then(m => ({ default: m.CandidateRankingPage })));
-const CompareCandidatesPage = React.lazy(() => import('./pages/CompareCandidatesPage').then(m => ({ default: m.CompareCandidatesPage })));
 const ShortlistPage = React.lazy(() => import('./pages/ShortlistPage').then(m => ({ default: m.ShortlistPage })));
 const AnalyticsPage = React.lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
 const AnalysisHistoryPage = React.lazy(() => import('./pages/AnalysisHistoryPage').then(m => ({ default: m.AnalysisHistoryPage })));
@@ -33,8 +31,6 @@ const SettingsPage = React.lazy(() => import('./pages/SettingsPage').then(m => (
 const SecurityPage = React.lazy(() => import('./pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = React.lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
-const CampaignsPage = React.lazy(() => import('./pages/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
-const InterviewIntelligencePage = React.lazy(() => import('./pages/InterviewIntelligencePage').then(m => ({ default: m.InterviewIntelligencePage })));
 const AgentActivityPage = React.lazy(() => import('./pages/AgentActivityPage').then(m => ({ default: m.AgentActivityPage })));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -80,15 +76,11 @@ export const App: React.FC = () => {
                 }
               >
                 <Route index element={<DashboardPage />} />
-                <Route path="campaigns" element={<CampaignsPage />} />
-                <Route path="jobs" element={<JobsPage />} />
                 <Route path="resumes/upload" element={<ResumeUploadPage />} />
                 <Route path="matching" element={<AIMatchingPage />} />
                 <Route path="candidates" element={<CandidatesPage />} />
                 <Route path="ranking" element={<CandidateRankingPage />} />
-                <Route path="compare" element={<CompareCandidatesPage />} />
                 <Route path="shortlist" element={<ShortlistPage />} />
-                <Route path="interview-kits" element={<InterviewIntelligencePage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="history" element={<AnalysisHistoryPage />} />
                 <Route path="agent-activity" element={<AgentActivityPage />} />

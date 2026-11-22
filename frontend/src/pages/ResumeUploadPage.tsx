@@ -49,6 +49,20 @@ export const ResumeUploadPage: React.FC = () => {
   const [loadingSamples, setLoadingSamples] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
+  const handleContinueToMatching = () => {
+    const completedCandidateIds = items
+      .filter((i) => i.status === 'completed' && i.resumeData?.candidate_id)
+      .map((i) => i.resumeData!.candidate_id!)
+      .filter(Boolean);
+    navigate('/matching', {
+      state: {
+        candidateIds: completedCandidateIds,
+        fromUpload: true,
+        count: completedCount,
+      },
+    });
+  };
+
   const handleLoadSampleBatch = async () => {
     setLoadingSamples(true);
     setBatchError(null);
@@ -372,11 +386,11 @@ export const ResumeUploadPage: React.FC = () => {
 
           {completedCount > 0 && (
             <button
-              onClick={() => navigate('/matching')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/20 shrink-0 cursor-pointer"
+              onClick={handleContinueToMatching}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/25 transition-all shrink-0 cursor-pointer animate-pulse"
             >
               <Cpu className="w-4 h-4" />
-              <span>Proceed to AI Matching</span>
+              <span>Continue to AI Matching ({completedCount})</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
@@ -515,6 +529,17 @@ export const ResumeUploadPage: React.FC = () => {
                 <span>Clear Queue</span>
               </button>
 
+              {completedCount > 0 && !isUploading && (
+                <button
+                  onClick={handleContinueToMatching}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/25 transition-all cursor-pointer"
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>Continue to AI Matching ({completedCount})</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+
               <button
                 onClick={startUpload}
                 disabled={isUploading || pendingCount === 0}
@@ -538,6 +563,32 @@ export const ResumeUploadPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Success Banner when resumes are processed */}
+          {completedCount > 0 && !isUploading && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-emerald-950">
+                    {completedCount} Resumes Ready for AI Matching
+                  </h4>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    Profiles, skill vectors, and timelines are parsed and indexed. Click below to continue directly to AI matching.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleContinueToMatching}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition-all cursor-pointer shrink-0"
+              >
+                <span>Continue to AI Matching</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
 
           {/* Overall Batch Progress */}

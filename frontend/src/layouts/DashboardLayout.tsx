@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Briefcase,
   UploadCloud,
   Cpu,
   Users,
   Trophy,
-  GitCompare,
   BookmarkCheck,
   BarChart3,
   History,
@@ -22,8 +20,6 @@ import {
   CheckCircle2,
   Sparkles,
   WifiOff,
-  Layers,
-  HelpCircle,
   Activity
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -107,14 +103,6 @@ export const DashboardLayout: React.FC = () => {
                 <LayoutDashboard className="w-4 h-4" />
                 <span>Dashboard</span>
               </NavLink>
-              <NavLink to="/campaigns" className={navClass}>
-                <Layers className="w-4 h-4" />
-                <span>Campaigns</span>
-              </NavLink>
-              <NavLink to="/jobs" className={navClass}>
-                <Briefcase className="w-4 h-4" />
-                <span>Job Descriptions</span>
-              </NavLink>
               <NavLink to="/resumes/upload" className={navClass}>
                 <UploadCloud className="w-4 h-4" />
                 <span>Resume Upload</span>
@@ -131,17 +119,9 @@ export const DashboardLayout: React.FC = () => {
                 <Trophy className="w-4 h-4" />
                 <span>Candidate Ranking</span>
               </NavLink>
-              <NavLink to="/compare" className={navClass}>
-                <GitCompare className="w-4 h-4" />
-                <span>Compare Candidates</span>
-              </NavLink>
               <NavLink to="/shortlist" className={navClass}>
                 <BookmarkCheck className="w-4 h-4" />
                 <span>Shortlisted</span>
-              </NavLink>
-              <NavLink to="/interview-kits" className={navClass}>
-                <HelpCircle className="w-4 h-4" />
-                <span>Interview Kits</span>
               </NavLink>
             </nav>
           </div>
@@ -310,7 +290,7 @@ export const DashboardLayout: React.FC = () => {
               <div className="flex items-center gap-2">
                 <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
-                  Backend API (http://localhost:8000) is currently offline. Operating in preview mode.
+                  Backend API is currently unreachable. Operating in preview mode.
                 </span>
               </div>
               <button
@@ -346,14 +326,6 @@ export const DashboardLayout: React.FC = () => {
                 <LayoutDashboard className="w-4 h-4" />
                 <span>Dashboard</span>
               </NavLink>
-              <NavLink to="/campaigns" className={navClass}>
-                <Layers className="w-4 h-4" />
-                <span>Campaigns</span>
-              </NavLink>
-              <NavLink to="/jobs" className={navClass}>
-                <Briefcase className="w-4 h-4" />
-                <span>Job Descriptions</span>
-              </NavLink>
               <NavLink to="/resumes/upload" className={navClass}>
                 <UploadCloud className="w-4 h-4" />
                 <span>Resume Upload</span>
@@ -370,17 +342,9 @@ export const DashboardLayout: React.FC = () => {
                 <Trophy className="w-4 h-4" />
                 <span>Candidate Ranking</span>
               </NavLink>
-              <NavLink to="/compare" className={navClass}>
-                <GitCompare className="w-4 h-4" />
-                <span>Compare</span>
-              </NavLink>
               <NavLink to="/shortlist" className={navClass}>
                 <BookmarkCheck className="w-4 h-4" />
                 <span>Shortlisted</span>
-              </NavLink>
-              <NavLink to="/interview-kits" className={navClass}>
-                <HelpCircle className="w-4 h-4" />
-                <span>Interview Kits</span>
               </NavLink>
               <NavLink to="/analytics" className={navClass}>
                 <BarChart3 className="w-4 h-4" />

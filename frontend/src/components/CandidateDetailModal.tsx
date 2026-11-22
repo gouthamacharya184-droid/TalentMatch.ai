@@ -44,7 +44,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const [savedNotes, setSavedNotes] = useState<any[]>([]);
   const [savingNote, setSavingNote] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'skills' | 'evidence' | 'interview' | 'notes' | 'resume'
+    'overview' | 'skills' | 'evidence' | 'interview' | 'recommendations' | 'notes' | 'resume'
   >('overview');
   const [showResumeViewer, setShowResumeViewer] = useState(false);
 
@@ -53,6 +53,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const [interviewKit, setInterviewKit] = useState<InterviewKit | null>(null);
   const [generatingKit, setGeneratingKit] = useState(false);
   const [evidenceFilter, setEvidenceFilter] = useState<string>('all');
+  const [recommendedJobs, setRecommendedJobs] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,6 +89,14 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
           setInterviewKit(kitData);
         } catch {
           // ignore if no kit yet
+        }
+
+        // Fetch Other Recommended Jobs for Candidate
+        try {
+          const recs = await matchingApi.getRecommendedJobs(candidateId, jobId);
+          setRecommendedJobs(recs || []);
+        } catch {
+          // ignore if not available
         }
       } catch (e) {
         console.error(e);
@@ -333,6 +342,17 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
             }`}
           >
             AI Interview Questions ({questions.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('recommendations')}
+            className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'recommendations'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>Other Job Matches ({recommendedJobs.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('notes')}
@@ -759,6 +779,92 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                   <p className="text-[11px] text-slate-400 mt-1">
                     Click "Generate Interview Kit" above to formulate evidence-based questions.
                   </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: OTHER JOB RECOMMENDATIONS */}
+          {activeTab === 'recommendations' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-purple-50/70 rounded-xl border border-blue-200/80">
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>AI Cross-Requisition Match Recommendations</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  The AI matching engine scanned all other open requisitions in your organization and evaluated this candidate's profile for alternative job placement opportunities.
+                </p>
+              </div>
+
+              {recommendedJobs.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-100">
+                  <Briefcase className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs text-slate-500 font-medium">No other matching job openings found.</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Create additional job requisitions to enable cross-role candidate placement.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recommendedJobs.map((rec: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-colors shadow-xs space-y-3"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-bold text-slate-900 text-sm">{rec.title}</h5>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-blue-50 text-blue-700 border border-blue-200">
+                              {rec.company}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {rec.location} • Min {rec.min_experience} yrs required
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 font-medium block">Match Fit</span>
+                            <span className={`text-base font-black ${
+                              rec.fit_score >= 70 ? 'text-emerald-600' : rec.fit_score >= 50 ? 'text-blue-600' : 'text-amber-600'
+                            }`}>
+                              {rec.fit_score}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                        <strong className="text-slate-800">AI Rationale: </strong>
+                        {rec.recommendation_reason}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+                        {rec.matched_skills && rec.matched_skills.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold text-emerald-700 uppercase">Aligned Skills:</span>
+                            {rec.matched_skills.map((s: string, i: number) => (
+                              <span key={i} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {rec.missing_skills && rec.missing_skills.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold text-amber-700 uppercase">Gaps to Probe:</span>
+                            {rec.missing_skills.map((s: string, i: number) => (
+                              <span key={i} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

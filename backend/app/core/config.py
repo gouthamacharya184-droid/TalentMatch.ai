@@ -25,10 +25,19 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # File Storage
-    UPLOAD_DIR: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../storage/uploads"))
+    default_upload: str = "/tmp/uploads" if os.environ.get("VERCEL") else os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../../storage/uploads")
+    )
+    UPLOAD_DIR: str = Field(default=default_upload, description="Directory for uploaded resumes")
     MAX_FILE_SIZE_MB: int = 15
     MAX_BATCH_SIZE: int = 50
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".txt"]
+    
+    # Vercel Blob Storage Integration
+    BLOB_READ_WRITE_TOKEN: Optional[str] = Field(
+        default=None,
+        description="Vercel Blob read-write access token for cloud resume persistence"
+    )
     
     # AI Engine
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -48,8 +57,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = True
     
-    # Optional LLM Integration (disabled by default)
-    LLM_ENABLED: bool = False
+    # Optional LLM Integration
+    LLM_ENABLED: bool = True
     LLM_API_KEY: Optional[str] = None
     LLM_MODEL: Optional[str] = "gemini-2.5-flash"
 
@@ -62,5 +71,8 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure upload directory exists
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+# Ensure upload directory exists safely
+try:
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+except OSError:
+    pass

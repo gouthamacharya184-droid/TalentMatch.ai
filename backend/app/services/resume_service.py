@@ -4,6 +4,7 @@ import hashlib
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
+import httpx
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
@@ -21,12 +22,64 @@ logger = logging.getLogger(__name__)
 class ResumeService:
     def __init__(self):
         self.resume_agent = ResumeIntelligenceAgent()
+        self.blob_token = getattr(settings, "BLOB_READ_WRITE_TOKEN", None) or os.environ.get("BLOB_READ_WRITE_TOKEN")
+
+    async def _upload_to_vercel_blob(self, filename: str, content: bytes, content_type: Optional[str] = None) -> Optional[str]:
+        """Upload file content directly to Vercel Blob store using REST API."""
+        if not self.blob_token:
+            return None
+        try:
+            url = f"https://blob.vercel-storage.com/resumes/{filename}"
+            headers = {
+                "Authorization": f"Bearer {self.blob_token}",
+                "x-api-version": "7",
+            }
+            if content_type:
+                headers["content-type"] = content_type
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.put(url, content=content, headers=headers)
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    blob_url = data.get("url") or data.get("downloadUrl")
+                    logger.info(f"Successfully uploaded {filename} to Vercel Blob: {blob_url}")
+                    return blob_url
+                else:
+                    logger.warning(f"Vercel Blob upload failed HTTP {resp.status_code}: {resp.text}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error uploading to Vercel Blob: {e}")
+            return None
+
+    def delete_blob_file(self, blob_url: str) -> bool:
+        """Delete file from Vercel Blob store."""
+        if not self.blob_token or not blob_url.startswith("https://"):
+            return False
+        try:
+            url = "https://blob.vercel-storage.com/delete"
+            headers = {
+                "Authorization": f"Bearer {self.blob_token}",
+                "x-api-version": "7",
+                "content-type": "application/json",
+            }
+            with httpx.Client(timeout=10.0) as client:
+                resp = client.post(url, json={"urls": [blob_url]}, headers=headers)
+                return resp.status_code == 200
+        except Exception as e:
+            logger.warning(f"Failed to delete Vercel Blob {blob_url}: {e}")
+            return False
 
     async def save_uploaded_file(self, upload_file: UploadFile) -> Tuple[str, str, int, Optional[str]]:
-        """Save file to storage and return (stored_filename, file_path, file_size, error_msg)."""
+        """Save file to storage and return (stored_filename, file_path_or_url, file_size, error_msg)."""
         filename = upload_file.filename or "unknown_file"
         ext = os.path.splitext(filename)[1].lower()
         unique_name = f"{uuid.uuid4()}{ext}"
+
+        try:
+            os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+        except OSError:
+            pass
+
         target_path = os.path.join(settings.UPLOAD_DIR, unique_name)
 
         try:
@@ -45,8 +98,15 @@ class ResumeService:
                 if ext == ".docx" and not content.startswith(b"PK\x03\x04"):
                     return unique_name, target_path, file_size, "Corrupted DOCX: Invalid zip container header."
 
+            # Save local temp copy for parsing text
             with open(target_path, "wb") as f:
                 f.write(content)
+
+            # If Vercel Blob is configured, upload to Blob and use blob URL as storage path
+            if self.blob_token:
+                blob_url = await self._upload_to_vercel_blob(unique_name, content, upload_file.content_type)
+                if blob_url:
+                    return unique_name, blob_url, file_size, None
 
             return unique_name, target_path, file_size, None
         except Exception as e:
@@ -124,7 +184,10 @@ class ResumeService:
         Extract text -> parse profile & page citations -> atomic Candidate, Skills, Resume & EvidenceReference creation.
         """
         ext = os.path.splitext(original_filename)[1].lower().replace(".", "")
-        content_hash = self.compute_file_hash(file_path)
+        is_remote_blob = file_path.startswith("http://") or file_path.startswith("https://")
+        local_extract_path = os.path.join(settings.UPLOAD_DIR, stored_filename) if is_remote_blob else file_path
+
+        content_hash = self.compute_file_hash(local_extract_path)
 
         # 1. Extract text and page decomposition before database transaction
         extracted_text = ""
@@ -133,7 +196,7 @@ class ResumeService:
         error_msg = None
 
         if ext == "pdf":
-            pdf_res = extract_text_from_pdf(file_path)
+            pdf_res = extract_text_from_pdf(local_extract_path)
             extracted_text = pdf_res.get("text", "")
             error_msg = pdf_res.get("error")
             page_count = pdf_res.get("page_count", 1)
@@ -143,13 +206,13 @@ class ResumeService:
             if not page_texts:
                 page_texts = {"1": extracted_text}
         elif ext in ["docx", "doc"]:
-            docx_res = extract_text_from_docx(file_path)
+            docx_res = extract_text_from_docx(local_extract_path)
             extracted_text = docx_res.get("text", "")
             error_msg = docx_res.get("error")
             page_texts = {"1": extracted_text}
         elif ext == "txt":
             try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(local_extract_path, "r", encoding="utf-8", errors="ignore") as f:
                     extracted_text = f.read()
                 if not extracted_text.strip():
                     error_msg = "Text file is empty or contains only whitespace."
@@ -158,6 +221,14 @@ class ResumeService:
                 error_msg = f"Failed to read text file: {str(e)}"
         else:
             error_msg = f"Unsupported file format: .{ext}"
+
+        # Clean up temporary disk file if file is persisted in Vercel Blob
+        if is_remote_blob:
+            try:
+                if os.path.exists(local_extract_path):
+                    os.remove(local_extract_path)
+            except Exception:
+                pass
 
         if error_msg or not extracted_text.strip():
             return self.create_failed_resume(

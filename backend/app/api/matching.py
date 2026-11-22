@@ -94,3 +94,55 @@ def get_rankings(
         sort_order=sort_order,
         min_score=min_score
     )
+
+
+@router.get("/candidate/{candidate_id}/recommend-jobs")
+def recommend_jobs_for_candidate(
+    candidate_id: str,
+    exclude_job_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    AI Candidate Recommendations:
+    Scans active requisitions and recommends other suitable job openings for this candidate
+    based on skill overlap and chronological experience.
+    """
+    from app.models.all_models import Candidate, Job
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    cand_skills = {s.skill_name.lower().strip() for s in candidate.skills}
+    other_jobs_query = db.query(Job)
+    if exclude_job_id:
+        other_jobs_query = other_jobs_query.filter(Job.id != exclude_job_id)
+    other_jobs = other_jobs_query.limit(25).all()
+
+    recommendations = []
+    for j in other_jobs:
+        req_skills = [r.skill_name.strip() for r in j.requirements]
+        matched = [s for s in req_skills if s.lower() in cand_skills]
+        missing = [s for s in req_skills if s.lower() not in cand_skills]
+
+        skill_pct = (len(matched) / len(req_skills)) * 100.0 if req_skills else 50.0
+        exp_pct = min(100.0, (candidate.total_experience_years / max(j.min_experience, 1.0)) * 100.0) if j.min_experience > 0 else 90.0
+        est_score = round((skill_pct * 0.7) + (exp_pct * 0.3), 1)
+
+        recommendations.append({
+            "job_id": j.id,
+            "title": j.title,
+            "company": j.company,
+            "location": j.location,
+            "min_experience": j.min_experience,
+            "fit_score": est_score,
+            "matched_skills": matched,
+            "missing_skills": missing[:4],
+            "recommendation_reason": (
+                f"Candidate matches {len(matched)} of {len(req_skills)} required competencies"
+                + (f" ({', '.join(matched[:3])})" if matched else "")
+                + f" with {candidate.total_experience_years} years relevant experience."
+            )
+        })
+
+    recommendations.sort(key=lambda x: x["fit_score"], reverse=True)
+    return recommendations[:5]

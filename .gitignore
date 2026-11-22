@@ -12,8 +12,10 @@ env/
 # Environment
 .env
 .env.*
+!.env.example
 backend/.env
 backend/.env.*
+!backend/.env.example
 
 # Build & Cache
 dist/
@@ -36,6 +38,14 @@ backups/
 *.db-journal
 *.db-wal
 *.db-shm
+*.bak
+
+# Temporary scripts & inspection artifacts
+inspect_*.py
+extract_prompt.py
+user_prompt_*.txt
+*_inventory.json
+audit_test_results.json
 
 # IDE & OS
 .vscode/

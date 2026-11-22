@@ -198,10 +198,22 @@ export const candidatesApi = {
 };
 
 // ── Matching ─────────────────────────────────────────────────
+export interface RecommendedJob {
+  job_id: string;
+  title: string;
+  company: string;
+  location: string;
+  min_experience: number;
+  fit_score: number;
+  matched_skills: string[];
+  missing_skills: string[];
+  recommendation_reason: string;
+}
+
 export const matchingApi = {
-  analyzeMatch: (jobId: string, candidateIds: string[]) =>
+  analyzeMatch: (jobId: string, candidateIds: string[], weights?: Record<string, number>) =>
     api
-      .post<MatchingAnalysis[]>('/matching/analyze', { job_id: jobId, candidate_ids: candidateIds })
+      .post<MatchingAnalysis[]>('/matching/analyze', { job_id: jobId, candidate_ids: candidateIds, weights })
       .then((r) => r.data),
 
   getResults: (jobId: string) =>
@@ -215,6 +227,13 @@ export const matchingApi = {
 
   simulateWhatIf: (data: WhatIfSimulationRequest) =>
     api.post<WhatIfSimulationResponse>('/matching/what-if', data).then((r) => r.data),
+
+  getRecommendedJobs: (candidateId: string, excludeJobId?: string) =>
+    api
+      .get<RecommendedJob[]>(`/matching/candidate/${candidateId}/recommend-jobs`, {
+        params: { exclude_job_id: excludeJobId },
+      })
+      .then((r) => r.data),
 };
 
 // ── Comparison ───────────────────────────────────────────────
@@ -307,24 +326,55 @@ export const chatbotApi = {
 };
 
 // ── Campaigns ────────────────────────────────────────────────
+// Backend uses `name` / `target_hires`; the UI uses `title` / `target_headcount`.
+type CampaignApiRecord = {
+  id: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  status?: string;
+  department?: string;
+  target_hires?: number;
+  target_headcount?: number;
+  hired_count?: number;
+  created_at: string;
+  updated_at?: string;
+  jobs?: Job[];
+};
+
+const toCampaign = (c: CampaignApiRecord): Campaign => ({
+  ...c,
+  title: c.title ?? c.name ?? '',
+  status: c.status ?? 'active',
+  target_headcount: c.target_headcount ?? c.target_hires ?? 1,
+  hired_count: c.hired_count ?? 0,
+});
+
+const toCampaignPayload = ({ title, target_headcount, ...rest }: Partial<CampaignCreate>) => ({
+  ...rest,
+  ...(title !== undefined ? { name: title } : {}),
+  ...(target_headcount !== undefined ? { target_hires: target_headcount } : {}),
+});
+
 export const campaignsApi = {
   getCampaigns: (params?: { status?: string }) =>
-    api.get<Campaign[]>('/campaigns', { params }).then((r) => r.data),
+    api.get<{ items: CampaignApiRecord[] }>('/campaigns', { params })
+      .then((r) => r.data.items.map(toCampaign)),
 
   getCampaign: (id: string) =>
-    api.get<Campaign>(`/campaigns/${id}`).then((r) => r.data),
+    api.get<CampaignApiRecord>(`/campaigns/${id}`).then((r) => toCampaign(r.data)),
 
   createCampaign: (data: CampaignCreate) =>
-    api.post<Campaign>('/campaigns', data).then((r) => r.data),
+    api.post<CampaignApiRecord>('/campaigns', toCampaignPayload(data)).then((r) => toCampaign(r.data)),
 
   updateCampaign: (id: string, data: Partial<CampaignCreate> & { status?: string; hired_count?: number }) =>
-    api.put<Campaign>(`/campaigns/${id}`, data).then((r) => r.data),
+    api.put<CampaignApiRecord>(`/campaigns/${id}`, toCampaignPayload(data)).then((r) => toCampaign(r.data)),
 
   deleteCampaign: (id: string) =>
     api.delete(`/campaigns/${id}`).then((r) => r.data),
 
   linkJob: (campaignId: string, jobId: string) =>
-    api.post<Campaign>(`/campaigns/${campaignId}/jobs/${jobId}`).then((r) => r.data),
+    api.post<CampaignApiRecord>(`/campaigns/${campaignId}/jobs/${jobId}`).then((r) => toCampaign(r.data)),
 };
 
 // ── Interview Kits ───────────────────────────────────────────

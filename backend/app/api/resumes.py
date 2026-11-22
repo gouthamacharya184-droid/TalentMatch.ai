@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -221,7 +221,14 @@ def get_resume(resume_id: str, db: Session = Depends(get_db)):
 @router.get("/{resume_id}/download")
 def download_resume(resume_id: str, db: Session = Depends(get_db)):
     resume = resume_service.get_resume(db, resume_id)
-    if not resume or not os.path.exists(resume.file_path):
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume record not found")
+
+    # If file is stored in Vercel Blob or external cloud storage
+    if resume.file_path and (resume.file_path.startswith("http://") or resume.file_path.startswith("https://")):
+        return RedirectResponse(url=resume.file_path, status_code=307)
+
+    if not resume.file_path or not os.path.exists(resume.file_path):
         raise HTTPException(status_code=404, detail="Resume file not found on server")
 
     # Path traversal defense: ensure file is within sanctioned upload or sample directories
@@ -249,7 +256,14 @@ def view_resume(resume_id: str, db: Session = Depends(get_db)):
     Stream resume directly for inline browser viewing (PDF/text).
     """
     resume = resume_service.get_resume(db, resume_id)
-    if not resume or not os.path.exists(resume.file_path):
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume record not found")
+
+    # If file is stored in Vercel Blob or external cloud storage
+    if resume.file_path and (resume.file_path.startswith("http://") or resume.file_path.startswith("https://")):
+        return RedirectResponse(url=resume.file_path, status_code=307)
+
+    if not resume.file_path or not os.path.exists(resume.file_path):
         raise HTTPException(status_code=404, detail="Resume file not found on server")
 
     real_path = os.path.realpath(resume.file_path)
@@ -280,7 +294,9 @@ def delete_resume(resume_id: str, db: Session = Depends(get_db)):
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
 
-    if resume.file_path and os.path.exists(resume.file_path):
+    if resume.file_path and (resume.file_path.startswith("http://") or resume.file_path.startswith("https://")):
+        resume_service.delete_blob_file(resume.file_path)
+    elif resume.file_path and os.path.exists(resume.file_path):
         real_path = os.path.realpath(resume.file_path)
         upload_root = os.path.realpath(settings.UPLOAD_DIR)
         # Prevent deletion outside upload directory
