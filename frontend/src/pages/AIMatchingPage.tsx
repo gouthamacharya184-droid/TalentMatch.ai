@@ -85,6 +85,88 @@ export const AIMatchingPage: React.FC = () => {
   const [activeSource, setActiveSource] = useState<'dropdown' | 'upload' | 'paste'>('dropdown');
   const lastAppliedTextRef = useRef<string>('');
 
+// Default standard requisitions ensuring immediate selection availability
+const DEFAULT_REQUISITIONS: Job[] = [
+  {
+    id: '00000000-0000-0000-0000-000000000101',
+    title: 'AI Engineer',
+    company: 'AVOM Consultants',
+    location: 'Remote (US / Global)',
+    employment_type: 'Full-time',
+    min_experience: 3.0,
+    education_req: "Bachelor's Degree in Computer Science or AI",
+    description: 'Design, develop, and integrate AI agentic workflows, LLM applications, RAG pipelines, and vector database architectures. Strong expertise in Python, OpenAI/Gemini/Anthropic APIs, LangChain or LlamaIndex, prompt engineering, and evaluation benchmarks.',
+    extracted_requirements: null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000102',
+    title: 'ML Engineer',
+    company: 'Cognitive Systems Labs',
+    location: 'San Francisco, CA / Hybrid',
+    employment_type: 'Full-time',
+    min_experience: 4.0,
+    education_req: "Master's Degree in Data Science or Machine Learning",
+    description: 'Develop and deploy scalable machine learning models, feature engineering pipelines, and statistical learning algorithms. In-depth understanding of PyTorch, Scikit-learn, Hugging Face, model quantization, and production inference serving.',
+    extracted_requirements: null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000103',
+    title: 'Software Engineer',
+    company: 'Enterprise Cloud Systems',
+    location: 'Austin, TX / Remote',
+    employment_type: 'Full-time',
+    min_experience: 3.0,
+    education_req: "Bachelor's Degree in Computer Science or Software Engineering",
+    description: 'Build high-throughput backend microservices, robust REST APIs, and event-driven architectures. Strong foundations in data structures, algorithms, object-oriented design, relational databases, unit testing, and clean code principles.',
+    extracted_requirements: null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000104',
+    title: 'DevOps Engineer',
+    company: 'CloudNative Operations',
+    location: 'Seattle, WA / Remote',
+    employment_type: 'Full-time',
+    min_experience: 4.0,
+    education_req: "Bachelor's Degree in IT, Systems, or equivalent experience",
+    description: 'Architect and manage automated CI/CD deployment pipelines, Kubernetes container orchestration, cloud infrastructure as code (Terraform), system observability, and zero-downtime releases on AWS/GCP.',
+    extracted_requirements: null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000105',
+    title: 'Cybersecurity Engineer',
+    company: 'SecureNet Defense Labs',
+    location: 'Washington, DC / Hybrid',
+    employment_type: 'Full-time',
+    min_experience: 4.0,
+    education_req: "Bachelor's Degree in Cybersecurity or Information Assurance",
+    description: 'Lead proactive application and network vulnerability assessments, penetration testing, security architecture reviews, IAM policy enforcement, encryption protocols, and incident response procedures.',
+    extracted_requirements: null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000106',
+    title: 'Full Stack Engineer',
+    company: 'AVOM Consultants',
+    location: 'Remote (US / Global)',
+    employment_type: 'Full-time',
+    min_experience: 4.0,
+    education_req: "Bachelor's Degree in Computer Science or related",
+    description: 'Architect and implement full-stack web applications from responsive modern React/TypeScript user interfaces to scalable Python FastAPI REST microservices, database schemas, and cloud deployments.',
+    extracted_requirements: null,
+    status: 'active',
+    created_at: new Date().toISOString(),
+  },
+];
+
   // Initial Fetch & Upload Handoff Handling
   useEffect(() => {
     const fetchData = async () => {
@@ -94,7 +176,11 @@ export const AIMatchingPage: React.FC = () => {
           jobsApi.getJobs({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
           candidatesApi.getCandidates({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
         ]);
-        const jobItems = jobsRes?.items ?? [];
+        const fetchedJobs = jobsRes?.items ?? [];
+        // Merge fetched jobs with default requisitions to ensure all requested roles exist
+        const existingTitles = new Set(fetchedJobs.map((j) => j.title.toLowerCase()));
+        const missingDefaults = DEFAULT_REQUISITIONS.filter((dj) => !existingTitles.has(dj.title.toLowerCase()));
+        const jobItems = [...fetchedJobs, ...missingDefaults];
         const candItems = candsRes?.items ?? [];
         setJobs(jobItems);
         setCandidates(candItems);
@@ -506,6 +592,29 @@ export const AIMatchingPage: React.FC = () => {
     return list;
   }, [results, resultsSearch, tierFilter, minScoreFilter, sortBy]);
 
+  const PRIORITY_TITLES = [
+    'ai engineer',
+    'ml engineer',
+    'software engineer',
+    'devops engineer',
+    'cybersecurity engineer',
+    'full stack engineer',
+  ];
+
+  const sortedJobs = useMemo(() => {
+    const list = [...(jobs ?? [])];
+    return list.sort((a, b) => {
+      const aTitle = (a.title || '').toLowerCase();
+      const bTitle = (b.title || '').toLowerCase();
+      const aIdx = PRIORITY_TITLES.findIndex((p) => aTitle.includes(p));
+      const bIdx = PRIORITY_TITLES.findIndex((p) => bTitle.includes(p));
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return aTitle.localeCompare(bTitle);
+    });
+  }, [jobs]);
+
   const currentJob = (jobs ?? []).find((j) => j && j.id === selectedJobId);
 
   // Candidates for Comparison Modal
@@ -600,7 +709,7 @@ export const AIMatchingPage: React.FC = () => {
                   Select from configured jobs...
                 </option>
               )}
-              {jobs.map((j) => (
+              {sortedJobs.map((j) => (
                 <option key={j.id} value={j.id}>
                   {j.title} ({j.company})
                 </option>

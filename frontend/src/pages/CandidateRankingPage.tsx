@@ -81,9 +81,27 @@ export const CandidateRankingPage: React.FC = () => {
       try {
         const res = await jobsApi.getJobs({ limit: 50 });
         const items = res?.items ?? [];
-        setJobs(items);
-        if (!selectedJobId && items.length > 0) {
-          setSelectedJobId(items[0].id);
+        const PRIORITY_TITLES = [
+          'ai engineer',
+          'ml engineer',
+          'software engineer',
+          'devops engineer',
+          'cybersecurity engineer',
+          'full stack engineer',
+        ];
+        const sorted = [...items].sort((a, b) => {
+          const aTitle = (a.title || '').toLowerCase();
+          const bTitle = (b.title || '').toLowerCase();
+          const aIdx = PRIORITY_TITLES.findIndex((p) => aTitle.includes(p));
+          const bIdx = PRIORITY_TITLES.findIndex((p) => bTitle.includes(p));
+          if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+          if (aIdx !== -1) return -1;
+          if (bIdx !== -1) return 1;
+          return aTitle.localeCompare(bTitle);
+        });
+        setJobs(sorted);
+        if (!selectedJobId && sorted.length > 0) {
+          setSelectedJobId(sorted[0].id);
         }
       } catch (e: any) {
         console.error(e);

@@ -22,6 +22,141 @@ logger = logging.getLogger(__name__)
 ADMIN_USER_ID = "00000000-0000-0000-0000-000000000001"
 RECRUITER_USER_ID = "00000000-0000-0000-0000-000000000002"
 
+STANDARD_JOBS = [
+    {
+        "id": "00000000-0000-0000-0000-000000000101",
+        "title": "AI Engineer",
+        "company": "AVOM Consultants",
+        "location": "Remote (US / Global)",
+        "employment_type": "Full-time",
+        "min_experience": 3.0,
+        "education_req": "Bachelor's Degree in Computer Science or AI",
+        "description": "Design, develop, and integrate AI agentic workflows, LLM applications, RAG pipelines, and vector database architectures. Strong expertise in Python, OpenAI/Gemini/Anthropic APIs, LangChain or LlamaIndex, prompt engineering, and evaluation benchmarks.",
+        "requirements": [
+            ("Python", "mandatory", "language"),
+            ("Generative AI", "mandatory", "ai_ml"),
+            ("LLM", "mandatory", "ai_ml"),
+            ("RAG", "mandatory", "ai_ml"),
+            ("Vector Databases", "mandatory", "database"),
+            ("FastAPI", "mandatory", "backend_frameworks"),
+            ("LangChain", "preferred", "ai_ml"),
+            ("PyTorch", "preferred", "ai_ml"),
+            ("Docker", "preferred", "cloud_devops"),
+            ("Git", "preferred", "tools_and_practices"),
+        ]
+    },
+    {
+        "id": "00000000-0000-0000-0000-000000000102",
+        "title": "ML Engineer",
+        "company": "Cognitive Systems Labs",
+        "location": "San Francisco, CA / Hybrid",
+        "employment_type": "Full-time",
+        "min_experience": 4.0,
+        "education_req": "Master's Degree in Data Science or Machine Learning",
+        "description": "Develop and deploy scalable machine learning models, feature engineering pipelines, and statistical learning algorithms. In-depth understanding of PyTorch, Scikit-learn, Hugging Face, model quantization, and production inference serving.",
+        "requirements": [
+            ("Python", "mandatory", "language"),
+            ("Machine Learning", "mandatory", "ai_ml"),
+            ("PyTorch", "mandatory", "ai_ml"),
+            ("Scikit-learn", "mandatory", "ai_ml"),
+            ("Deep Learning", "mandatory", "ai_ml"),
+            ("NLP", "mandatory", "ai_ml"),
+            ("MLflow", "preferred", "ai_ml"),
+            ("Docker", "preferred", "cloud_devops"),
+            ("SQL", "preferred", "database"),
+            ("FastAPI", "preferred", "backend_frameworks"),
+        ]
+    },
+    {
+        "id": "00000000-0000-0000-0000-000000000103",
+        "title": "Software Engineer",
+        "company": "Enterprise Cloud Systems",
+        "location": "Austin, TX / Remote",
+        "employment_type": "Full-time",
+        "min_experience": 3.0,
+        "education_req": "Bachelor's Degree in Computer Science or Software Engineering",
+        "description": "Build high-throughput backend microservices, robust REST APIs, and event-driven architectures. Strong foundations in data structures, algorithms, object-oriented design, relational databases, unit testing, and clean code principles.",
+        "requirements": [
+            ("Python", "mandatory", "language"),
+            ("REST API", "mandatory", "tools_and_practices"),
+            ("PostgreSQL", "mandatory", "database"),
+            ("Git", "mandatory", "tools_and_practices"),
+            ("Data Structures", "mandatory", "technical"),
+            ("Docker", "preferred", "cloud_devops"),
+            ("CI/CD", "preferred", "cloud_devops"),
+            ("Redis", "preferred", "database"),
+            ("Unit Testing", "preferred", "tools_and_practices"),
+            ("Linux", "preferred", "cloud_devops"),
+        ]
+    },
+    {
+        "id": "00000000-0000-0000-0000-000000000104",
+        "title": "DevOps Engineer",
+        "company": "CloudNative Operations",
+        "location": "Seattle, WA / Remote",
+        "employment_type": "Full-time",
+        "min_experience": 4.0,
+        "education_req": "Bachelor's Degree in IT, Systems, or equivalent experience",
+        "description": "Architect and manage automated CI/CD deployment pipelines, Kubernetes container orchestration, cloud infrastructure as code (Terraform), system observability, and zero-downtime releases on AWS/GCP.",
+        "requirements": [
+            ("Docker", "mandatory", "cloud_devops"),
+            ("Kubernetes", "mandatory", "cloud_devops"),
+            ("CI/CD", "mandatory", "cloud_devops"),
+            ("AWS", "mandatory", "cloud_devops"),
+            ("Linux", "mandatory", "cloud_devops"),
+            ("Terraform", "preferred", "cloud_devops"),
+            ("Python", "preferred", "language"),
+            ("Bash", "preferred", "tools_and_practices"),
+            ("Prometheus", "preferred", "tools_and_practices"),
+            ("Git", "preferred", "tools_and_practices"),
+        ]
+    },
+    {
+        "id": "00000000-0000-0000-0000-000000000105",
+        "title": "Cybersecurity Engineer",
+        "company": "SecureNet Defense Labs",
+        "location": "Washington, DC / Hybrid",
+        "employment_type": "Full-time",
+        "min_experience": 4.0,
+        "education_req": "Bachelor's Degree in Cybersecurity or Information Assurance",
+        "description": "Lead proactive application and network vulnerability assessments, penetration testing, security architecture reviews, IAM policy enforcement, encryption protocols, and incident response procedures.",
+        "requirements": [
+            ("Cybersecurity", "mandatory", "technical"),
+            ("Network Security", "mandatory", "technical"),
+            ("Vulnerability Assessment", "mandatory", "technical"),
+            ("Penetration Testing", "mandatory", "technical"),
+            ("Security Auditing", "mandatory", "technical"),
+            ("IAM", "preferred", "cloud_devops"),
+            ("Python", "preferred", "language"),
+            ("Linux", "preferred", "cloud_devops"),
+            ("SIEM", "preferred", "tools_and_practices"),
+            ("Encryption", "preferred", "technical"),
+        ]
+    },
+    {
+        "id": "00000000-0000-0000-0000-000000000106",
+        "title": "Full Stack Engineer",
+        "company": "AVOM Consultants",
+        "location": "Remote (US / Global)",
+        "employment_type": "Full-time",
+        "min_experience": 4.0,
+        "education_req": "Bachelor's Degree in Computer Science or related",
+        "description": "Architect and implement full-stack web applications from responsive modern React/TypeScript user interfaces to scalable Python FastAPI REST microservices, database schemas, and cloud deployments.",
+        "requirements": [
+            ("Python", "mandatory", "language"),
+            ("FastAPI", "mandatory", "backend_frameworks"),
+            ("React", "mandatory", "frontend_frameworks"),
+            ("TypeScript", "mandatory", "language"),
+            ("PostgreSQL", "mandatory", "database"),
+            ("Docker", "mandatory", "cloud_devops"),
+            ("REST API", "mandatory", "tools_and_practices"),
+            ("AWS", "preferred", "cloud_devops"),
+            ("Tailwind CSS", "preferred", "frontend_frameworks"),
+            ("Redis", "preferred", "database"),
+        ]
+    },
+]
+
 
 def seed_database(db: Session, fast_mode: bool = False):
     """Seed initial demo users, realistic job descriptions, and candidate resumes."""
@@ -61,8 +196,37 @@ def seed_database(db: Session, fast_mode: bool = False):
 
     db.commit()
 
+    # 2. Ensure all standard job requisitions exist
+    for jdata in STANDARD_JOBS:
+        existing_job = db.query(Job).filter(
+            (Job.id == jdata["id"]) | (Job.title == jdata["title"])
+        ).first()
+        if not existing_job:
+            job_obj = Job(
+                id=jdata["id"],
+                user_id=recruiter.id,
+                title=jdata["title"],
+                company=jdata["company"],
+                location=jdata["location"],
+                employment_type=jdata["employment_type"],
+                min_experience=jdata["min_experience"],
+                education_req=jdata["education_req"],
+                description=jdata["description"],
+                status="active"
+            )
+            db.add(job_obj)
+            db.flush()
+            for skill_name, cat, stype in jdata["requirements"]:
+                db.add(JobRequirement(
+                    job_id=job_obj.id,
+                    skill_name=skill_name,
+                    category=cat,
+                    skill_type=stype
+                ))
+    db.commit()
+
     # Fast exit for cold starts or if database already populated with jobs
-    if fast_mode or db.query(Job).count() > 0:
+    if fast_mode or db.query(Job).filter(Job.title == "Senior Full-Stack Engineer").count() > 0:
         return
 
     logger.info("Seeding realistic recruitment jobs and candidates...")
