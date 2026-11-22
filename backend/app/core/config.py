@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         os.path.join(os.path.dirname(__file__), "../../../storage/uploads")
     )
     UPLOAD_DIR: str = Field(default=default_upload, description="Directory for uploaded resumes")
-    MAX_FILE_SIZE_MB: int = 15
+    MAX_FILE_SIZE_MB: float = 4.5 if os.environ.get("VERCEL") else 15.0
     MAX_BATCH_SIZE: int = 50
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".txt"]
     
@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
+    ALLOWED_ORIGINS: Optional[str] = None
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -70,6 +71,22 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# In production on Vercel, SECRET_KEY is strictly required and cannot be default
+if os.environ.get("VERCEL"):
+    insecure_keys = {
+        "talentmatch-super-secret-production-key-2026-secure-32-chars",
+        "talentmatch-dev-insecure-secret-key-change-in-production-32chars",
+        "default_secret_key",
+        "change-me-in-production",
+        "",
+    }
+    if not settings.SECRET_KEY or settings.SECRET_KEY in insecure_keys:
+        raise ValueError(
+            "CRITICAL CONFIGURATION ERROR: SECRET_KEY environment variable is required in production "
+            "on Vercel and cannot use an insecure default value. "
+            "Please configure a secure SECRET_KEY in Vercel -> Project Settings -> Environment Variables."
+        )
 
 # Ensure upload directory exists safely
 try:

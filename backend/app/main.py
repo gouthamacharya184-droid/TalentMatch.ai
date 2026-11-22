@@ -63,15 +63,21 @@ app = FastAPI(
 )
 
 # CORS Middleware with valid origins and credentials support
-allowed_origins = list(set(settings.CORS_ORIGINS + [
-    settings.FRONTEND_URL,
-    "http://localhost",
-    "http://localhost:80",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://localhost:8000",
-]))
+raw_allowed = os.environ.get("ALLOWED_ORIGINS", "")
+custom_origins = [o.strip() for o in raw_allowed.split(",") if o.strip()] if raw_allowed else []
+
+allowed_origins = list(dict.fromkeys(
+    custom_origins +
+    settings.CORS_ORIGINS + [
+        settings.FRONTEND_URL,
+        "http://localhost",
+        "http://localhost:80",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ]
+))
 
 app.add_middleware(
     CORSMiddleware,
@@ -148,7 +154,7 @@ def health_check():
 
     is_prod = bool(os.environ.get("VERCEL"))
     return {
-        "status": "healthy" if db_status == "connected" else "degraded",
+        "status": "ok",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": "production" if is_prod else "development",

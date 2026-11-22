@@ -20,6 +20,11 @@ is_vercel = bool(os.environ.get("VERCEL"))
 if db_url.startswith("sqlite"):
     # If running in Vercel serverless with SQLite, ensure DB is writable by copying to /tmp
     if is_vercel:
+        logger.warning(
+            "CRITICAL WARNING: DATABASE_URL is not configured for production on Vercel. "
+            "Using ephemeral SQLite in /tmp/talentmatch.db. DATA WILL NOT PERSIST across serverless invocations! "
+            "Please configure DATABASE_URL (PostgreSQL) in Vercel -> Project Settings -> Environment Variables."
+        )
         tmp_db_path = "/tmp/talentmatch.db"
         if not os.path.exists(tmp_db_path):
             base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))

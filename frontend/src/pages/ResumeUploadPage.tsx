@@ -34,7 +34,7 @@ export interface UploadItem {
   resumeData?: Resume;
 }
 
-const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_FILE_SIZE_BYTES = 4.5 * 1024 * 1024; // 4.5 MB (Vercel serverless request body limit)
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt'];
 
 export const ResumeUploadPage: React.FC = () => {
@@ -162,7 +162,7 @@ export const ResumeUploadPage: React.FC = () => {
           name: f.name,
           size: f.size,
           status: 'failed',
-          error: `File size exceeds 15 MB limit (${(f.size / (1024 * 1024)).toFixed(1)} MB)`,
+          error: `File size exceeds 4.5 MB serverless limit (${(f.size / (1024 * 1024)).toFixed(1)} MB)`,
         });
         continue;
       }

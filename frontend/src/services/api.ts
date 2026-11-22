@@ -122,20 +122,53 @@ export const jobsApi = {
 
 // ── Resumes ──────────────────────────────────────────────────
 export const resumesApi = {
-  uploadResumes: (files: File[], onProgress?: (percent: number) => void) => {
-    const form = new FormData();
-    files.forEach((f) => form.append('files', f));
-    return api
-      .post<Resume[]>('/resumes/upload', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          if (onProgress && progressEvent.total) {
-            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            onProgress(percent);
-          }
-        },
-      })
-      .then((r) => r.data);
+  uploadResumes: async (files: File[], onProgress?: (percent: number) => void) => {
+    // Vercel serverless has a 4.5 MB request body limit.
+    // Upload files sequentially one-by-one so multi-resume batches never exceed payload limits.
+    if (files.length <= 1) {
+      const form = new FormData();
+      if (files[0]) form.append('files', files[0]);
+      return api
+        .post<Resume[]>('/resumes/upload', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              onProgress(percent);
+            }
+          },
+        })
+        .then((r) => r.data);
+    }
+
+    const aggregated: Resume[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const form = new FormData();
+      form.append('files', files[i]);
+      try {
+        const res = await api.post<Resume[]>('/resumes/upload', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (Array.isArray(res.data)) {
+          aggregated.push(...res.data);
+        }
+      } catch (err: any) {
+        aggregated.push({
+          id: `err-${Math.random().toString(36).substring(2, 9)}`,
+          original_filename: files[i].name,
+          filename: files[i].name,
+          processing_status: 'failed',
+          status: 'failed',
+          file_size: files[i].size,
+          error_message: err?.response?.data?.detail || err?.message || 'Upload failed',
+          created_at: new Date().toISOString(),
+        } as Resume);
+      }
+      if (onProgress) {
+        onProgress(Math.round(((i + 1) * 100) / files.length));
+      }
+    }
+    return aggregated;
   },
 
   uploadSingleResume: (file: File, onProgress?: (percent: number) => void) => {
