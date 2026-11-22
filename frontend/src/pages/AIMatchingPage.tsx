@@ -1895,6 +1895,10 @@ export const MatchingPage: React.FC = () => {
           candidateId={detailCandidateId}
           jobId={selectedJobId}
           initialAnalysis={results.find((r) => r.candidate_id === detailCandidateId)}
+          initialCandidate={
+            candidates.find((c) => c.id === detailCandidateId) ||
+            results.find((r) => r.candidate_id === detailCandidateId)?.candidate
+          }
           onClose={() => setDetailCandidateId(null)}
         />
       )}

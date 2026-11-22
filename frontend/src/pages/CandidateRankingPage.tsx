@@ -786,6 +786,8 @@ export const CandidateRankingPage: React.FC = () => {
         <CandidateDetailModal
           candidateId={selectedCandidateId}
           jobId={selectedJobId}
+          initialAnalysis={rankings.find((r) => r.candidate_id === selectedCandidateId)}
+          initialCandidate={rankings.find((r) => r.candidate_id === selectedCandidateId)?.candidate}
           onClose={() => setSelectedCandidateId(null)}
           onStatusChange={fetchRankings}
         />

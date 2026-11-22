@@ -14,6 +14,7 @@ import {
   Save,
   Sparkles,
   Eye,
+  RefreshCw,
 } from 'lucide-react';
 import type { Candidate, MatchingAnalysis, EvidenceReference, InterviewKit } from '../types';
 import { candidatesApi, shortlistApi, resumesApi, matchingApi, interviewKitsApi } from '../services/api';
@@ -23,6 +24,7 @@ interface CandidateDetailModalProps {
   candidateId: string;
   jobId?: string;
   initialAnalysis?: MatchingAnalysis;
+  initialCandidate?: Candidate;
   onClose: () => void;
   onStatusChange?: (newStatus: string) => void;
 }
@@ -31,12 +33,16 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   candidateId,
   jobId,
   initialAnalysis,
+  initialCandidate,
   onClose,
   onStatusChange,
 }) => {
-  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [candidate, setCandidate] = useState<Candidate | null>(
+    initialCandidate || initialAnalysis?.candidate || null
+  );
   const [analysis, setAnalysis] = useState<MatchingAnalysis | null>(initialAnalysis || null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCandidate && !initialAnalysis?.candidate);
+  const [error, setError] = useState<string | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [savedNotes, setSavedNotes] = useState<any[]>([]);
   const [savingNote, setSavingNote] = useState(false);
@@ -52,30 +58,63 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const [evidenceFilter, setEvidenceFilter] = useState<string>('all');
   const [recommendedJobs, setRecommendedJobs] = useState<any[]>([]);
 
+  // Close on Escape key
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
-      setLoading(true);
+      if (!candidate) {
+        setLoading(true);
+      }
+      setError(null);
       try {
-        const c = await candidatesApi.getCandidate(candidateId);
-        setCandidate(c);
+        try {
+          const c = await candidatesApi.getCandidate(candidateId);
+          if (isMounted) setCandidate(c);
+        } catch (candErr: any) {
+          console.error('Failed to get candidate profile:', candErr);
+          if (initialCandidate || initialAnalysis?.candidate) {
+            if (isMounted) setCandidate(initialCandidate || initialAnalysis?.candidate || null);
+          } else {
+            const status = candErr?.response?.status;
+            if (status === 404) {
+              if (isMounted) setError('Candidate profile not found in database. In serverless or ephemeral environments, candidate records may not persist across restarts.');
+            } else if (candErr?.code === 'ERR_NETWORK' || !candErr?.response) {
+              if (isMounted) setError('Unable to connect to backend server. Please verify the FastAPI backend server is running on http://127.0.0.1:8000.');
+            } else {
+              if (isMounted) setError(candErr?.response?.data?.detail || candErr?.message || 'Failed to load candidate profile.');
+            }
+          }
+        }
 
         if (!analysis && jobId) {
           try {
             const rankings = await matchingApi.getRankings(jobId);
             const found = rankings.find((r) => r.candidate_id === candidateId);
-            if (found) setAnalysis(found);
+            if (found && isMounted) setAnalysis(found);
           } catch {
             // ignore if no rankings yet
           }
         }
 
-        const notes = await shortlistApi.getNotes(candidateId, jobId);
-        setSavedNotes(notes);
+        try {
+          const notes = await shortlistApi.getNotes(candidateId, jobId);
+          if (isMounted) setSavedNotes(notes || []);
+        } catch {
+          // ignore if no notes yet
+        }
 
         // Fetch Agentic Evidence references
         try {
           const evData = await candidatesApi.getEvidence(candidateId, jobId);
-          setEvidenceList(evData);
+          if (isMounted) setEvidenceList(evData || []);
         } catch {
           // ignore if no evidence yet
         }
@@ -83,7 +122,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
         // Fetch Agentic Interview Kit if generated
         try {
           const kitData = await interviewKitsApi.getKitForCandidate(candidateId, jobId);
-          setInterviewKit(kitData);
+          if (isMounted) setInterviewKit(kitData);
         } catch {
           // ignore if no kit yet
         }
@@ -91,17 +130,20 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
         // Fetch Other Recommended Jobs for Candidate
         try {
           const recs = await matchingApi.getRecommendedJobs(candidateId, jobId);
-          setRecommendedJobs(recs || []);
+          if (isMounted) setRecommendedJobs(recs || []);
         } catch {
           // ignore if not available
         }
-      } catch (e) {
-        console.error(e);
+      } catch (e: any) {
+        console.error('CandidateDetailModal fetchData error:', e);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchData();
+    return () => {
+      isMounted = false;
+    };
   }, [candidateId, jobId]);
 
   const handleGenerateKit = async () => {
@@ -156,12 +198,95 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
     }
   };
 
-  if (loading || !candidate) {
+  if (loading && !candidate) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-        <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-xl">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-xl relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-sm font-medium text-slate-600">Loading Candidate Profile...</p>
+          <p className="text-sm font-semibold text-slate-800">Loading Candidate Profile...</p>
+          <p className="text-xs text-slate-500 mt-1">Retrieving profile, parsed taxonomy, and evidence...</p>
+          <button
+            onClick={onClose}
+            className="mt-6 px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel & Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!candidate) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 text-center relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900 mb-1">
+            Unable to Load Candidate Profile
+          </h3>
+          <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+            {error || 'The candidate profile could not be retrieved from the server.'}
+          </p>
+          <div className="bg-slate-50 rounded-xl p-2.5 text-[11px] font-mono text-slate-500 mb-6 truncate border border-slate-100">
+            Candidate ID: {candidateId}
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                setLoading(true);
+                setError(null);
+                const fetchAgain = async () => {
+                  try {
+                    const c = await candidatesApi.getCandidate(candidateId);
+                    setCandidate(c);
+                  } catch (e: any) {
+                    setError(e?.response?.data?.detail || e?.message || 'Retry failed.');
+                  } finally {
+                    setLoading(false);
+                  }
+                };
+                fetchAgain();
+              }}
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -172,8 +297,14 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const insights = (analysis?.explanation as any)?.recruiter_insights || null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-blue-50/50 via-white to-slate-50">
           <div className="flex items-start gap-4">

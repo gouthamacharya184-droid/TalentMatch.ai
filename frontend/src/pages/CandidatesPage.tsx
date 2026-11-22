@@ -316,6 +316,7 @@ export const CandidatesPage: React.FC = () => {
       {selectedCandidateId && (
         <CandidateDetailModal
           candidateId={selectedCandidateId}
+          initialCandidate={candidates.find((c) => c.id === selectedCandidateId)}
           onClose={() => setSelectedCandidateId(null)}
           onStatusChange={fetchCandidates}
         />
