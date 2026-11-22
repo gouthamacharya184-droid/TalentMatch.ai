@@ -21,7 +21,7 @@ from app.ai_engine.insights import CandidateInsights
 logger = logging.getLogger(__name__)
 
 
-def seed_database(db: Session):
+def seed_database(db: Session, fast_mode: bool = False):
     """Seed initial demo users, realistic job descriptions, and candidate resumes."""
     # Fast exit if database is already seeded to avoid heavy cold-start recomputations
     if db.query(User).filter(User.email == "admin@talentmatch.ai").first():
@@ -254,9 +254,18 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
         }
     ]
 
-    matching_engine = MatchingEngine()
-    question_gen = InterviewQuestionGenerator()
-    insights_gen = CandidateInsights()
+    use_fast = fast_mode or bool(os.environ.get("VERCEL"))
+    if not use_fast:
+        from app.ai_engine.matching_engine import MatchingEngine
+        from app.ai_engine.interview_questions import InterviewQuestionGenerator
+        from app.ai_engine.insights import CandidateInsights
+        matching_engine = MatchingEngine()
+        question_gen = InterviewQuestionGenerator()
+        insights_gen = CandidateInsights()
+    else:
+        matching_engine = None
+        question_gen = None
+        insights_gen = None
 
     job1_data = {
         "title": job1.title,
@@ -316,77 +325,137 @@ Strong grasp of cosine similarity metrics, statistical testing, and scalable mod
 
         db.commit()
 
-        # Match against Job 1
-        m1 = matching_engine.match(
-            job_data=job1_data,
-            candidate_data={"name": cand.name, "total_experience_years": cand.total_experience_years, "education": cand.education},
-            candidate_skills=c_info["skills"],
-            resume_text=res.raw_text
-        )
+        if use_fast:
+            cand_skill_set = {s.lower() for s in c_info["skills"]}
+            j1_reqs_lower = {r[0].lower() for r in job1_reqs}
+            matched_j1 = [s for s in c_info["skills"] if s.lower() in j1_reqs_lower]
+            missing_j1 = [r[0] for r in job1_reqs if r[0].lower() not in cand_skill_set]
+            skill_ratio1 = len(matched_j1) / max(len(job1_reqs), 1)
+            tech_score1 = round(min(100.0, skill_ratio1 * 100), 1)
+            overall1 = round(tech_score1 * 0.5 + min(100.0, (cand.total_experience_years / 5.0) * 80) * 0.3 + 18.0, 1)
 
-        q1 = question_gen.generate_questions(
-            job_title=job1.title,
-            matched_skills=[m["skill"] for m in m1["matched_skills"]],
-            missing_skills=m1["missing_skills"],
-            experience_years=cand.total_experience_years,
-            candidate_projects=cand.extracted_profile.get("projects", [])
-        )
+            analysis1 = MatchingAnalysis(
+                job_id=job1.id,
+                candidate_id=cand.id,
+                user_id=recruiter.id,
+                overall_score=overall1,
+                technical_score=tech_score1,
+                semantic_score=round(tech_score1 * 0.95, 1),
+                experience_score=round(min(100.0, (cand.total_experience_years / 5.0) * 90), 1),
+                education_score=90.0,
+                explanation={
+                    "summary": f"{cand.name} matches {len(matched_j1)} of {len(job1_reqs)} key requirements for {job1.title}.",
+                    "interview_questions": [f"Describe your production experience with {matched_j1[0]}." if matched_j1 else "Describe your software architecture background."],
+                    "recruiter_insights": [f"Candidate possesses {cand.total_experience_years} years of demonstrated experience."]
+                },
+                strengths=[f"Strong proficiency in {s}" for s in matched_j1[:3]],
+                skill_gaps=[f"Missing required background in {s}" for s in missing_j1[:3]],
+                matched_skills=[{"skill": s, "type": "language"} for s in matched_j1],
+                missing_skills=missing_j1[:5],
+                related_skills=[]
+            )
+            db.add(analysis1)
 
-        i1 = insights_gen.generate_insights(
-            candidate_name=cand.name,
-            overall_score=m1["overall_score"],
-            matched_skills=m1["matched_skills"],
-            missing_skills=m1["missing_skills"],
-            experience_years=cand.total_experience_years,
-            min_experience_required=job1.min_experience
-        )
+            j2_reqs_lower = {r[0].lower() for r in job2_reqs}
+            matched_j2 = [s for s in c_info["skills"] if s.lower() in j2_reqs_lower]
+            missing_j2 = [r[0] for r in job2_reqs if r[0].lower() not in cand_skill_set]
+            skill_ratio2 = len(matched_j2) / max(len(job2_reqs), 1)
+            tech_score2 = round(min(100.0, skill_ratio2 * 100), 1)
+            overall2 = round(tech_score2 * 0.5 + min(100.0, (cand.total_experience_years / 5.0) * 80) * 0.3 + 18.0, 1)
 
-        m1["explanation"]["interview_questions"] = q1
-        m1["explanation"]["recruiter_insights"] = i1
+            analysis2 = MatchingAnalysis(
+                job_id=job2.id,
+                candidate_id=cand.id,
+                user_id=recruiter.id,
+                overall_score=overall2,
+                technical_score=tech_score2,
+                semantic_score=round(tech_score2 * 0.95, 1),
+                experience_score=round(min(100.0, (cand.total_experience_years / 5.0) * 90), 1),
+                education_score=95.0,
+                explanation={
+                    "summary": f"{cand.name} matches {len(matched_j2)} of {len(job2_reqs)} key requirements for {job2.title}.",
+                    "interview_questions": [f"Describe your deep learning workflow using {matched_j2[0]}." if matched_j2 else "Describe your ML model serving experience."],
+                    "recruiter_insights": [f"Candidate has {cand.total_experience_years} years in relevant domains."]
+                },
+                strengths=[f"Demonstrated domain mastery in {s}" for s in matched_j2[:3]],
+                skill_gaps=[f"Missing experience in {s}" for s in missing_j2[:3]],
+                matched_skills=[{"skill": s, "type": "ai_ml"} for s in matched_j2],
+                missing_skills=missing_j2[:5],
+                related_skills=[]
+            )
+            db.add(analysis2)
+        else:
+            # Match against Job 1
+            m1 = matching_engine.match(
+                job_data=job1_data,
+                candidate_data={"name": cand.name, "total_experience_years": cand.total_experience_years, "education": cand.education},
+                candidate_skills=c_info["skills"],
+                resume_text=res.raw_text
+            )
 
-        analysis1 = MatchingAnalysis(
-            job_id=job1.id,
-            candidate_id=cand.id,
-            user_id=recruiter.id,
-            overall_score=m1["overall_score"],
-            technical_score=m1["technical_score"],
-            semantic_score=m1["semantic_score"],
-            experience_score=m1["experience_score"],
-            education_score=m1["education_score"],
-            explanation=m1["explanation"],
-            strengths=m1["strengths"],
-            skill_gaps=m1["skill_gaps"],
-            matched_skills=m1["matched_skills"],
-            missing_skills=m1["missing_skills"],
-            related_skills=m1["related_skills"]
-        )
-        db.add(analysis1)
+            q1 = question_gen.generate_questions(
+                job_title=job1.title,
+                matched_skills=[m["skill"] for m in m1["matched_skills"]],
+                missing_skills=m1["missing_skills"],
+                experience_years=cand.total_experience_years,
+                candidate_projects=cand.extracted_profile.get("projects", [])
+            )
 
-        # Match against Job 2
-        m2 = matching_engine.match(
-            job_data=job2_data,
-            candidate_data={"name": cand.name, "total_experience_years": cand.total_experience_years, "education": cand.education},
-            candidate_skills=c_info["skills"],
-            resume_text=res.raw_text
-        )
+            i1 = insights_gen.generate_insights(
+                candidate_name=cand.name,
+                overall_score=m1["overall_score"],
+                matched_skills=m1["matched_skills"],
+                missing_skills=m1["missing_skills"],
+                experience_years=cand.total_experience_years,
+                min_experience_required=job1.min_experience
+            )
 
-        analysis2 = MatchingAnalysis(
-            job_id=job2.id,
-            candidate_id=cand.id,
-            user_id=recruiter.id,
-            overall_score=m2["overall_score"],
-            technical_score=m2["technical_score"],
-            semantic_score=m2["semantic_score"],
-            experience_score=m2["experience_score"],
-            education_score=m2["education_score"],
-            explanation=m2["explanation"],
-            strengths=m2["strengths"],
-            skill_gaps=m2["skill_gaps"],
-            matched_skills=m2["matched_skills"],
-            missing_skills=m2["missing_skills"],
-            related_skills=m2["related_skills"]
-        )
-        db.add(analysis2)
+            m1["explanation"]["interview_questions"] = q1
+            m1["explanation"]["recruiter_insights"] = i1
+
+            analysis1 = MatchingAnalysis(
+                job_id=job1.id,
+                candidate_id=cand.id,
+                user_id=recruiter.id,
+                overall_score=m1["overall_score"],
+                technical_score=m1["technical_score"],
+                semantic_score=m1["semantic_score"],
+                experience_score=m1["experience_score"],
+                education_score=m1["education_score"],
+                explanation=m1["explanation"],
+                strengths=m1["strengths"],
+                skill_gaps=m1["skill_gaps"],
+                matched_skills=m1["matched_skills"],
+                missing_skills=m1["missing_skills"],
+                related_skills=m1["related_skills"]
+            )
+            db.add(analysis1)
+
+            # Match against Job 2
+            m2 = matching_engine.match(
+                job_data=job2_data,
+                candidate_data={"name": cand.name, "total_experience_years": cand.total_experience_years, "education": cand.education},
+                candidate_skills=c_info["skills"],
+                resume_text=res.raw_text
+            )
+
+            analysis2 = MatchingAnalysis(
+                job_id=job2.id,
+                candidate_id=cand.id,
+                user_id=recruiter.id,
+                overall_score=m2["overall_score"],
+                technical_score=m2["technical_score"],
+                semantic_score=m2["semantic_score"],
+                experience_score=m2["experience_score"],
+                education_score=m2["education_score"],
+                explanation=m2["explanation"],
+                strengths=m2["strengths"],
+                skill_gaps=m2["skill_gaps"],
+                matched_skills=m2["matched_skills"],
+                missing_skills=m2["missing_skills"],
+                related_skills=m2["related_skills"]
+            )
+            db.add(analysis2)
 
         # Shortlist the top 2 candidates for Job 1
         if idx in [0, 9]:
