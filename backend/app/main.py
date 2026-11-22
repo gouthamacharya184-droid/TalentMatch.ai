@@ -130,6 +130,20 @@ async def custom_404_handler(request: Request, exc):
         }
     )
 
+@app.exception_handler(Exception)
+async def custom_500_handler(request: Request, exc: Exception):
+    import traceback
+    logger.exception(f"Unhandled error handling {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error": str(exc),
+            "type": type(exc).__name__,
+            "path": request.url.path,
+        }
+    )
+
 # Mount Routers for both /api and /api/v1
 routers = [
     auth_router,
