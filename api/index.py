@@ -1,10 +1,54 @@
 import os
 import sys
 from pathlib import Path
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# Dynamically locate the backend directory across environments
+# Top-level ASGI FastAPI app explicitly detected by Vercel static inspection
+app = FastAPI(
+    title="TalentMatch AI",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/api/health")
+@app.get("/health")
+def health_endpoint():
+    db_status = "connected"
+    try:
+        from app.database.session import SessionLocal
+        from sqlalchemy import text
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception as e:
+        db_status = f"disconnected: {str(e)}"
+
+    is_prod = bool(os.environ.get("VERCEL"))
+    return {
+        "status": "ok",
+        "service": "TalentMatch AI",
+        "version": "1.0.0",
+        "environment": "production" if is_prod else "development",
+        "database": db_status
+    }
+
+@app.get("/api/ping")
+@app.get("/ping")
+def ping_endpoint():
+    return {"ok": True}
+
+# Locate backend directory across local, Docker, and Vercel environments
 current_dir = Path(__file__).resolve().parent
-
 candidate_dirs = [
     current_dir.parent / "backend",
     current_dir / "backend",
@@ -26,52 +70,20 @@ if backend_dir:
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
     os.environ["PYTHONPATH"] = backend_path
-else:
-    fallback = str(current_dir.parent / "backend")
-    if fallback not in sys.path:
-        sys.path.insert(0, fallback)
-    os.environ["PYTHONPATH"] = fallback
 
-# Ensure project root is also available for asset lookups
 root_dir = str(current_dir.parent)
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
 try:
-    from app.main import app
+    from app.main import app as backend_app
+    app.include_router(backend_app.router)
 except Exception as _init_err:
-    import traceback
-    _err_tb = traceback.format_exc()
-    from fastapi import FastAPI
-    from fastapi.responses import JSONResponse
-    from fastapi.middleware.cors import CORSMiddleware
-
-    app = FastAPI(title="TalentMatch AI - Diagnostic")
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    @app.get("/api/health")
-    @app.get("/health")
-    @app.get("/api/ping")
-    @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
-    async def fallback_handler(path: str = ""):
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "error": "FastAPI Backend Initialization Failed on Vercel",
-                "detail": str(_init_err),
-                "traceback": _err_tb,
-                "current_dir": str(current_dir),
-                "candidate_dirs_checked": [str(d) for d in candidate_dirs],
-                "sys_path": sys.path[:5],
-                "files_in_current": [f.name for f in current_dir.iterdir()] if current_dir.exists() else [],
-                "files_in_parent": [f.name for f in current_dir.parent.iterdir()] if current_dir.parent.exists() else []
-            }
-        )
+    @app.get("/api/init-error")
+    def init_error_debug():
+        return {
+            "error": "Backend app import failed",
+            "detail": str(_init_err),
+            "candidate_dirs": [str(d) for d in candidate_dirs],
+            "sys_path": sys.path[:5]
+        }

@@ -15,3 +15,12 @@ app.add_middleware(
 @app.get("/ping")
 def ping():
     return {"ok": True}
+
+@app.get("/api/health")
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "TalentMatch AI",
+        "version": "1.0.0"
+    }
