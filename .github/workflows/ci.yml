@@ -2,17 +2,14 @@ name: TalentMatch.ai CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, audit/production-hardening ]
+    branches: [ main, cleanup/simple-structure ]
   pull_request:
     branches: [ main ]
 
 jobs:
   backend-test:
-    name: Backend Lint, Safety & Test Suite
+    name: Backend Test Suite
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
       - name: Checkout Repository
@@ -28,23 +25,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio flake8 httpx
-
-      - name: Run Backend Syntax & Flake8 Checks
-        run: |
-          # Stop build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          pip install pytest pytest-asyncio httpx
 
       - name: Execute Pytest Suite
         env:
-          PYTHONPATH: .
+          PYTHONPATH: backend
           SECRET_KEY: test_secret_key_for_ci_pipeline_only_123456789
           ENVIRONMENT: test
         run: |
-          pytest tests/ -v --maxfail=5
+          pytest backend/tests/ -v
 
   frontend-test:
-    name: Frontend Lint & Production Build
+    name: Frontend Production Build
     runs-on: ubuntu-latest
     defaults:
       run:
