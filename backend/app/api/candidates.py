@@ -80,7 +80,12 @@ def get_candidate_skills(candidate_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{candidate_id}/evidence", response_model=list[dict])
-def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
+def get_candidate_evidence(
+    candidate_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
     """Retrieve all traceable evidence references with page citations for this candidate."""
     from app.models.all_models import EvidenceReference
 
@@ -88,7 +93,13 @@ def get_candidate_evidence(candidate_id: str, db: Session = Depends(get_db)):
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    items = db.query(EvidenceReference).filter(EvidenceReference.candidate_id == candidate_id).all()
+    items = (
+        db.query(EvidenceReference)
+        .filter(EvidenceReference.candidate_id == candidate_id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     if items:
         return [
             {

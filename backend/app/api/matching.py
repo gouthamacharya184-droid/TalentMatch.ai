@@ -57,8 +57,13 @@ def simulate_what_if(req: WhatIfSimulationRequest, db: Session = Depends(get_db)
 
 
 @router.get("/results/{job_id}", response_model=list[MatchingAnalysisResponse])
-def get_results(job_id: str, db: Session = Depends(get_db)):
-    return matching_service.get_rankings(db, job_id=job_id)
+def get_results(
+    job_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return matching_service.get_rankings(db, job_id=job_id, skip=skip, limit=limit)
 
 
 @router.get("/analysis/{analysis_id}", response_model=MatchingAnalysisResponse)
@@ -75,10 +80,12 @@ def get_rankings(
     sort_by: str = Query("overall_score"),
     sort_order: str = Query("desc"),
     min_score: float | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     return matching_service.get_rankings(
-        db=db, job_id=job_id, sort_by=sort_by, sort_order=sort_order, min_score=min_score
+        db=db, job_id=job_id, sort_by=sort_by, sort_order=sort_order, min_score=min_score, skip=skip, limit=limit
     )
 
 

@@ -57,8 +57,9 @@ class ShortlistService:
         db.commit()
         return True
 
-    def get_job_shortlists(self, db: Session, job_id: str) -> list[Shortlist]:
-        return db.query(Shortlist).filter(Shortlist.job_id == job_id).all()
+    def get_job_shortlists(self, db: Session, job_id: str, skip: int = 0, limit: int = 50) -> list[Shortlist]:
+        safe_limit = min(max(1, limit), 100)
+        return db.query(Shortlist).filter(Shortlist.job_id == job_id).offset(skip).limit(safe_limit).all()
 
     def update_shortlist_status(self, db: Session, shortlist_id: str, status: str) -> Shortlist | None:
         shortlist = db.query(Shortlist).filter(Shortlist.id == shortlist_id).first()
@@ -84,9 +85,12 @@ class ShortlistService:
         db.refresh(note)
         return note
 
-    def get_notes(self, db: Session, candidate_id: str, job_id: str | None = None) -> list[RecruiterNote]:
+    def get_notes(
+        self, db: Session, candidate_id: str, job_id: str | None = None, skip: int = 0, limit: int = 50
+    ) -> list[RecruiterNote]:
+        safe_limit = min(max(1, limit), 100)
         query = db.query(RecruiterNote).filter(RecruiterNote.candidate_id == candidate_id)
         clean_job_id = job_id.strip() if (job_id and isinstance(job_id, str) and job_id.strip()) else None
         if clean_job_id:
             query = query.filter(RecruiterNote.job_id == clean_job_id)
-        return query.order_by(RecruiterNote.created_at.desc()).all()
+        return query.order_by(RecruiterNote.created_at.desc()).offset(skip).limit(safe_limit).all()

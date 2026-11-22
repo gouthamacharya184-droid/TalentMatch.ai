@@ -85,8 +85,13 @@ def remove_from_shortlist(shortlist_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/job/{job_id}", response_model=list[ShortlistResponse])
-def get_job_shortlists(job_id: str, db: Session = Depends(get_db)):
-    return shortlist_service.get_job_shortlists(db, job_id)
+def get_job_shortlists(
+    job_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return shortlist_service.get_job_shortlists(db, job_id, skip=skip, limit=limit)
 
 
 @router.put("/{shortlist_id}/status", response_model=ShortlistResponse)
@@ -110,5 +115,11 @@ def add_note(
 
 
 @router.get("/notes/{candidate_id}", response_model=list[RecruiterNoteResponse])
-def get_notes(candidate_id: str, job_id: str | None = None, db: Session = Depends(get_db)):
-    return shortlist_service.get_notes(db, candidate_id=candidate_id, job_id=job_id)
+def get_notes(
+    candidate_id: str,
+    job_id: str | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return shortlist_service.get_notes(db, candidate_id=candidate_id, job_id=job_id, skip=skip, limit=limit)

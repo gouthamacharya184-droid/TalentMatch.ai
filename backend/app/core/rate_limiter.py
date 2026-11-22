@@ -80,12 +80,12 @@ class RateLimiter:
             return request.client.host
         return "127.0.0.1"
 
-    def is_rate_limited(self, request: Request) -> tuple[bool, int, int]:
+    def is_rate_limited(self, request: Request, bypass_test_check: bool = False) -> tuple[bool, int, int]:
         """
         Returns (is_limited, retry_after_seconds, limit).
-        Always returns (False, 0, limit) during automated tests.
+        Always returns (False, 0, limit) during automated tests unless bypass_test_check is True.
         """
-        if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("ENVIRONMENT") == "test":
+        if not bypass_test_check and (os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("ENVIRONMENT") == "test"):
             return False, 0, 9999
 
         path = request.url.path
@@ -118,6 +118,9 @@ class RateLimiter:
         now = time.time()
         window_start = now - window
 
+        # Check if Redis was configured
+        redis_configured = bool(os.environ.get("REDIS_URL")) and REDIS_AVAILABLE
+
         # Attempt Redis-backed sliding window evaluation first
         if self.redis_client is not None:
             try:
@@ -136,10 +139,37 @@ class RateLimiter:
 
                 return False, 0, limit
             except Exception as e:
-                logger.warning(f"Redis rate limiting operation failed ({e}). Reverting to in-memory evaluation.")
-                self.redis_client = None  # Temporary fallback to in-memory
+                # Redis failure handling: fail closed for login routes, fail open for non-auth routes
+                is_login_route = "/auth/login" in path
+                if is_login_route:
+                    logger.error(
+                        f"CRITICAL SECURITY ALERT: Redis rate limiter is DOWN during login attempt to '{path}' "
+                        f"from IP '{ip}' (Error: {e}). Failing CLOSED to protect against credential brute force."
+                    )
+                    return True, 60, limit
+                else:
+                    logger.warning(
+                        f"OPERATIONAL WARNING: Redis rate limiter is DOWN for route '{path}' from IP '{ip}' "
+                        f"(Error: {e}). Failing OPEN to preserve service availability."
+                    )
+                    return False, 0, limit
+        elif redis_configured:
+            # Redis was configured via REDIS_URL but initial connection failed or client was reset
+            is_login_route = "/auth/login" in path
+            if is_login_route:
+                logger.error(
+                    f"CRITICAL SECURITY ALERT: Redis is unreachable for login route '{path}' from IP '{ip}'. "
+                    "Failing CLOSED to protect against brute forcing."
+                )
+                return True, 60, limit
+            else:
+                logger.warning(
+                    f"OPERATIONAL WARNING: Redis is unreachable for route '{path}' from IP '{ip}'. "
+                    "Failing OPEN to preserve service availability."
+                )
+                return False, 0, limit
 
-        # In-Memory sliding window fallback
+        # In-Memory sliding window fallback (for local development without REDIS_URL)
         timestamps = [t for t in self.requests[key] if t > window_start]
         self.requests[key] = timestamps
 

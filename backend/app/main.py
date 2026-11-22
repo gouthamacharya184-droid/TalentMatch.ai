@@ -4,9 +4,12 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_db
 
 from app.api.agents import router as agents_router
 from app.api.analytics import router as analytics_router
@@ -24,13 +27,14 @@ from app.api.notifications import router as notifications_router
 from app.api.resumes import router as resumes_router
 from app.api.shortlist import router as shortlist_router
 from app.core.config import settings
+from app.core.logging_config import setup_structured_logging
 from app.core.rate_limiter import RateLimitMiddleware
+from app.core.security import cleanup_expired_revoked_tokens
 from app.database.seed import seed_database
 from app.database.session import Base, SessionLocal, engine
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("talentmatch")
+# Configure Structured JSON Logging with PII masking and optional Sentry
+logger = setup_structured_logging("talentmatch")
 
 
 @asynccontextmanager
@@ -45,9 +49,11 @@ async def lifespan(app: FastAPI):
     try:
         db = SessionLocal()
         seed_database(db, fast_mode=bool(os.environ.get("VERCEL")))
+        # Startup task: cleanup expired revoked tokens to prevent unbounded table growth
+        cleanup_expired_revoked_tokens(db)
         db.close()
     except Exception as e:
-        logger.warning(f"Error seeding database: {e}")
+        logger.warning(f"Error during startup database initialization: {e}")
 
     logger.info("TalentMatch AI backend started successfully.")
     yield
@@ -114,15 +120,23 @@ async def add_request_id_and_timing(request: Request, call_next):
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    # HSTS without preload per security audit specification
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'none';"
+
+    # Content-Security-Policy with optional Report-Only mode
+    csp_policy = (
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; "
+        "frame-ancestors 'none';"
     )
+    if os.environ.get("CSP_REPORT_ONLY"):
+        response.headers["Content-Security-Policy-Report-Only"] = csp_policy
+    else:
+        response.headers["Content-Security-Policy"] = csp_policy
     return response
 
 
@@ -261,15 +275,30 @@ def _get_health_data():
 
 
 @app.get("/health")
-def root_health_check():
-    data = _get_health_data()
-    return {"status": "healthy" if data["database"] == "connected" else "degraded", **data}
-
-
 @app.get("/api/health")
-def api_health_check():
-    data = _get_health_data()
-    return {"status": "ok", **data}
+def liveness_check():
+    """Pure liveness probe - returns 200 without database access."""
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "environment": "production" if (os.environ.get("VERCEL") or os.environ.get("ENVIRONMENT") == "production") else "development",
+    }
+
+
+@app.get("/api/cron/cleanup-tokens")
+@app.post("/api/cron/cleanup-tokens")
+def cron_cleanup_tokens(request: Request, db: Session = Depends(get_db)):
+    """Scheduled task for Vercel Cron or background orchestrator to cleanup expired revoked tokens."""
+    cron_secret = os.environ.get("CRON_SECRET")
+    is_vercel = bool(request.headers.get("x-vercel-cron"))
+    auth_header = request.headers.get("authorization", "")
+    if cron_secret and not is_vercel and auth_header != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized cron invocation")
+
+    count = cleanup_expired_revoked_tokens(db)
+    logger.info(f"Cron token cleanup completed: {count} expired tokens purged.")
+    return {"status": "success", "purged_count": count}
 
 
 @app.get("/ready")

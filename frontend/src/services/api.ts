@@ -35,16 +35,27 @@ import type {
 const rawBase = (import.meta.env.VITE_API_URL as string) || (import.meta.env.VITE_API_BASE_URL as string) || '/api';
 const baseURL = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 
+function getCsrfTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^|;\\s*)csrf_token=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 const api = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
-// Request interceptor — attach JWT and handle multipart/form-data
+// Request interceptor — attach JWT, CSRF token, and handle multipart/form-data
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('access_token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const csrf = getCsrfTokenFromCookie();
+  if (csrf && config.headers) {
+    config.headers['X-CSRF-Token'] = csrf;
   }
   // When sending FormData, remove Content-Type so browser sets boundary automatically
   if (config.data instanceof FormData && config.headers) {

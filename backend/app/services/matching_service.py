@@ -217,7 +217,10 @@ class MatchingService:
         sort_by: str = "overall_score",
         sort_order: str = "desc",
         min_score: float | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[MatchingAnalysis]:
+        safe_limit = min(max(1, limit), 100)
         query = db.query(MatchingAnalysis).options(
             selectinload(MatchingAnalysis.candidate),
             selectinload(MatchingAnalysis.job),
@@ -231,7 +234,7 @@ class MatchingService:
         else:
             query = query.order_by(col)
 
-        return query.all()
+        return query.offset(skip).limit(safe_limit).all()
 
     def simulate_what_if(
         self,

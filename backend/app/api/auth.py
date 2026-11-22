@@ -1,6 +1,8 @@
+import os
+import secrets
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, oauth2_scheme
@@ -33,9 +35,34 @@ from app.services.notification_service import NotificationService
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+def _set_auth_cookies(response: Response, refresh_token: str) -> str:
+    """Sets HttpOnly Secure SameSite refresh_token cookie and readable CSRF token cookie."""
+    is_prod = bool(os.environ.get("VERCEL")) or os.environ.get("ENVIRONMENT") == "production"
+    csrf_token = secrets.token_hex(32)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        max_age=7 * 24 * 3600,
+        path="/",
+    )
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        httponly=False,
+        secure=is_prod,
+        samesite="lax",
+        max_age=7 * 24 * 3600,
+        path="/",
+    )
+    return csrf_token
+
+
 @router.post("/register", response_model=TokenResponse)
 @router.post("/register/", response_model=TokenResponse, include_in_schema=False)
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+def register(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == req.email.lower()).first()
     if existing:
         raise HTTPException(
@@ -56,6 +83,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
     access_token = create_access_token(user.id, role=user.role, email=user.email)
     refresh_token = create_refresh_token(user.id)
+    _set_auth_cookies(response, refresh_token)
 
     NotificationService.log_activity(
         db=db,
@@ -71,7 +99,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 @router.post("/login/", response_model=TokenResponse, include_in_schema=False)
-def login(req: LoginRequest, db: Session = Depends(get_db)):
+def login(req: LoginRequest, response: Response, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(User.email == email_clean).first()
 
@@ -93,6 +121,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
     access_token = create_access_token(user.id, role=user.role, email=user.email)
     refresh_token = create_refresh_token(user.id)
+    _set_auth_cookies(response, refresh_token)
 
     NotificationService.log_activity(
         db=db,
@@ -108,6 +137,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 def logout(
+    response: Response,
     token: str | None = Depends(oauth2_scheme),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -116,6 +146,11 @@ def logout(
         revoke_token(token, db=db, reason="logout")
     # Clean up expired revoked tokens in background to keep table size bounded
     cleanup_expired_revoked_tokens(db=db)
+
+    # Invalidate cookies
+    response.delete_cookie(key="refresh_token", path="/")
+    response.delete_cookie(key="csrf_token", path="/")
+
     NotificationService.log_activity(
         db=db,
         action="USER_LOGOUT",
@@ -129,14 +164,36 @@ def logout(
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(
-    req: RefreshTokenRequest | None = None, token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    request: Request,
+    response: Response,
+    req: RefreshTokenRequest | None = None,
+    token: str | None = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
 ):
     """
     Refresh Token Rotation:
-    Validates the refresh token, revokes the used token,
-    and returns a newly issued access token and rotated refresh token.
+    Validates the refresh token (from body, Authorization header, or HttpOnly cookie),
+    revokes the used token, and returns a newly issued access token and rotated refresh token.
+    Enforces Double-Submit CSRF check when using cookie-based authentication.
     """
-    raw_token = req.refresh_token if (req and req.refresh_token) else token
+    raw_token = None
+    if req and req.refresh_token:
+        raw_token = req.refresh_token
+    elif token:
+        raw_token = token
+    else:
+        # Check HttpOnly cookie
+        cookie_refresh = request.cookies.get("refresh_token")
+        if cookie_refresh:
+            cookie_csrf = request.cookies.get("csrf_token")
+            header_csrf = request.headers.get("x-csrf-token")
+            if not cookie_csrf or not header_csrf or not secrets.compare_digest(cookie_csrf, header_csrf):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="CSRF validation failed: Missing or invalid X-CSRF-Token header",
+                )
+            raw_token = cookie_refresh
+
     if not raw_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token required")
 
@@ -160,6 +217,7 @@ def refresh(
     # Issue new pair (Rotation)
     new_access = create_access_token(user.id, role=user.role)
     new_refresh = create_refresh_token(user.id)
+    _set_auth_cookies(response, new_refresh)
 
     return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer", "user": user}
 
