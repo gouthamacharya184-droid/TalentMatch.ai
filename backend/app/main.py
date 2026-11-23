@@ -262,6 +262,7 @@ def _get_health_data():
     storage = "blob" if has_blob else "tmp (not persistent)"
 
     return {
+        "status": "ok" if db_status == "connected" else "degraded",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": "production" if is_prod else "development",
@@ -274,16 +275,32 @@ def _get_health_data():
     }
 
 
+@app.get("/ping")
+@app.get("/api/ping")
+def canary_ping():
+    """Lightweight canary ping probe for serverless and uptime monitors."""
+    return {"ok": True}
+
+
 @app.get("/health")
-@app.get("/api/health")
 def liveness_check():
     """Pure liveness probe - returns 200 without database access."""
     return {
         "status": "healthy",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "environment": "production" if (os.environ.get("VERCEL") or os.environ.get("ENVIRONMENT") == "production") else "development",
+        "environment": "production"
+        if (os.environ.get("VERCEL") or os.environ.get("ENVIRONMENT") == "production")
+        else "development",
     }
+
+
+@app.get("/api/health")
+def health_check():
+    """Observability check reporting database connection status and service metadata."""
+    data = _get_health_data()
+    status_code = 200 if data["database"] == "connected" else 503
+    return JSONResponse(status_code=status_code, content=data)
 
 
 @app.get("/api/cron/cleanup-tokens")

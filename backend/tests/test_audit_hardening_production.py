@@ -107,8 +107,8 @@ def test_password_reset_replay_attack_prevention():
 
 
 def test_health_check_returns_clean_observability_data():
-    """Verify root /health reports database connection status and service metadata."""
-    res = client.get("/health")
+    """Verify /api/health reports database connection status and service metadata."""
+    res = client.get("/api/health")
     assert res.status_code in (200, 503)
     data = res.json()
     assert "status" in data

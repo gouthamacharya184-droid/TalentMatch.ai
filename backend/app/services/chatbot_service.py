@@ -429,7 +429,10 @@ CRITICAL OPERATIONAL RULES:
 6. Formatting: Use concise, professional markdown with bullet points, bold highlights, and tables where appropriate.
 """
             messages = self.get_conversation_history(cid)
-            llm_text = self.llm_service.generate_chat_response(messages, system_prompt, max_tokens=1500)
+            user_id = str(user.id) if user else None
+            llm_text = self.llm_service.generate_chat_response(
+                messages, system_prompt, max_tokens=1500, user_id=user_id
+            )
             if llm_text:
                 llm_response = llm_text
                 mode = "llm"

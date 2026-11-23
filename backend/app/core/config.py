@@ -110,6 +110,7 @@ class Settings(BaseSettings):
     LLM_ENABLED: bool = True
     LLM_API_KEY: str | None = None
     LLM_MODEL: str | None = "gemini-2.5-flash"
+    DAILY_AI_QUOTA_PER_USER: int = Field(default=50, description="Daily LLM request quota per user")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

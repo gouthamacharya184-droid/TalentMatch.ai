@@ -545,7 +545,11 @@ export const MatchingPage: React.FC = () => {
     try {
       if (isCurrentlyShortlisted) {
         // Remove from shortlist
-        await shortlistApi.removeFromShortlist(candidateId); // or by job/cand
+        if (selectedJobId) {
+          await shortlistApi.removeFromShortlistByJobAndCandidate(selectedJobId, candidateId);
+        } else {
+          await shortlistApi.removeFromShortlist(candidateId);
+        }
         setShortlistedMap((prev) => {
           const next = { ...prev };
           delete next[candidateId];

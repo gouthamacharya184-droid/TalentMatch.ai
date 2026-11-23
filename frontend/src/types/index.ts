@@ -401,21 +401,28 @@ export interface WhatIfSimulationRequest {
 
 export interface WhatIfCandidateDelta {
   candidate_id: string;
-  candidate_name: string;
+  name?: string;
+  candidate_name?: string;
   previous_score: number;
   simulated_score: number;
   score_delta: number;
   previous_rank: number;
   simulated_rank: number;
   rank_delta: number;
-  component_breakdown: Record<string, number>;
+  impact_summary?: string;
+  component_breakdown?: Record<string, number>;
 }
 
 export interface WhatIfSimulationResponse {
   job_id: string;
-  weights_used: Record<string, number>;
-  total_candidates: number;
-  rankings: WhatIfCandidateDelta[];
+  weights_used?: Record<string, number>;
+  total_candidates?: number;
+  total_candidates_evaluated?: number;
+  average_score_before?: number;
+  average_score_after?: number;
+  significant_movers_count?: number;
+  rankings?: WhatIfCandidateDelta[];
+  deltas?: WhatIfCandidateDelta[];
 }
 
 

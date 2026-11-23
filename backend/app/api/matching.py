@@ -39,7 +39,7 @@ def simulate_what_if(req: WhatIfSimulationRequest, db: Session = Depends(get_db)
     without persisting mutations to candidate profiles or database state.
     """
     try:
-        weights_dict = req.weights.model_dump() if req.weights else None
+        weights_dict = req.weights.model_dump() if req.weights else req.custom_weights
         reqs_list = [r.model_dump() for r in req.modified_requirements] if req.modified_requirements else None
 
         sim_res = matching_service.simulate_what_if(

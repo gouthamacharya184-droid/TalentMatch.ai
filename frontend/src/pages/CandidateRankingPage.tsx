@@ -703,7 +703,13 @@ export const CandidateRankingPage: React.FC = () => {
               {simulationResult && (
                 <div className="space-y-2 pt-2 border-t border-slate-100">
                   <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                    <span>Simulated Sensitivity Results ({simulationResult.total_candidates} candidates)</span>
+                    <span>
+                      Simulated Sensitivity Results (
+                      {simulationResult.total_candidates ??
+                        simulationResult.total_candidates_evaluated ??
+                        0}{' '}
+                      candidates)
+                    </span>
                     <span className="text-emerald-700 font-medium text-[11px]">Normalized to 100%</span>
                   </div>
 
@@ -719,13 +725,15 @@ export const CandidateRankingPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {simulationResult.rankings.map((c) => {
+                        {(simulationResult.rankings ?? simulationResult.deltas ?? []).map((c) => {
                           const isPositiveRank = c.rank_delta > 0;
                           const isNegativeRank = c.rank_delta < 0;
                           return (
                             <tr key={c.candidate_id} className="hover:bg-slate-50">
                               <td className="p-2.5 font-bold text-slate-900">#{c.simulated_rank}</td>
-                              <td className="p-2.5 font-semibold text-slate-800">{c.candidate_name}</td>
+                              <td className="p-2.5 font-semibold text-slate-800">
+                                {c.candidate_name || c.name || 'Candidate'}
+                              </td>
                               <td className="p-2.5">
                                 <span className="text-slate-400 font-mono text-[11px]">
                                   {c.previous_score.toFixed(1)} →{' '}

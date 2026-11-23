@@ -402,6 +402,9 @@ export const shortlistApi = {
   removeFromShortlist: (id: string) =>
     api.delete(`/shortlist/${id}`).then((r) => r.data),
 
+  removeFromShortlistByJobAndCandidate: (jobId: string, candidateId: string) =>
+    api.delete(`/shortlist/${jobId}/${candidateId}`).then((r) => r.data),
+
   getJobShortlist: (jobId: string) =>
     api.get<Shortlist[]>(`/shortlist/job/${jobId}`).then((r) => r.data),
 

@@ -46,6 +46,9 @@ class ShortlistService:
     def remove_from_shortlist(self, db: Session, shortlist_id: str) -> bool:
         shortlist = db.query(Shortlist).filter(Shortlist.id == shortlist_id).first()
         if not shortlist:
+            # Fallback: check if the identifier is candidate_id
+            shortlist = db.query(Shortlist).filter(Shortlist.candidate_id == shortlist_id).first()
+        if not shortlist:
             return False
 
         # Reset candidate status if appropriate

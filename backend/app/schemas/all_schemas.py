@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 try:
     import email_validator  # noqa: F401
@@ -446,6 +446,7 @@ class CriteriaApprovalRequest(BaseModel):
 class WhatIfSimulationRequest(BaseModel):
     job_id: str
     weights: ScoringWeights | None = None
+    custom_weights: dict[str, float] | None = None
     modified_requirements: list[JobRequirementCreate] | None = None
     min_experience_override: float | None = None
 
@@ -453,6 +454,7 @@ class WhatIfSimulationRequest(BaseModel):
 class WhatIfCandidateDelta(BaseModel):
     candidate_id: str
     name: str
+    candidate_name: str | None = None
     previous_score: float
     simulated_score: float
     score_delta: float
@@ -461,14 +463,40 @@ class WhatIfCandidateDelta(BaseModel):
     rank_delta: int
     impact_summary: str
 
+    @model_validator(mode="before")
+    @classmethod
+    def populate_candidate_name(cls, data: Any):
+        if isinstance(data, dict):
+            if "candidate_name" not in data and "name" in data:
+                data["candidate_name"] = data["name"]
+            elif "name" not in data and "candidate_name" in data:
+                data["name"] = data["candidate_name"]
+        return data
+
 
 class WhatIfSimulationResponse(BaseModel):
     job_id: str
     total_candidates_evaluated: int
+    total_candidates: int | None = None
     average_score_before: float
     average_score_after: float
     significant_movers_count: int
     deltas: list[WhatIfCandidateDelta]
+    rankings: list[WhatIfCandidateDelta] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_aliases(cls, data: Any):
+        if isinstance(data, dict):
+            if "total_candidates" not in data and "total_candidates_evaluated" in data:
+                data["total_candidates"] = data["total_candidates_evaluated"]
+            elif "total_candidates_evaluated" not in data and "total_candidates" in data:
+                data["total_candidates_evaluated"] = data["total_candidates"]
+            if "rankings" not in data and "deltas" in data:
+                data["rankings"] = data["deltas"]
+            elif "deltas" not in data and "rankings" in data:
+                data["deltas"] = data["rankings"]
+        return data
 
 
 # ── Evidence References ──────────────────────────────────
