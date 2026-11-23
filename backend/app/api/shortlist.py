@@ -68,19 +68,38 @@ def add_note_by_ids(
 
 
 @router.delete("/{job_id}/{candidate_id}")
-def remove_from_shortlist_by_ids(job_id: str, candidate_id: str, db: Session = Depends(get_db)):
-    record = db.query(Shortlist).filter(Shortlist.job_id == job_id, Shortlist.candidate_id == candidate_id).first()
+def remove_from_shortlist_by_ids(
+    job_id: str,
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+):
+    query = db.query(Shortlist).filter(Shortlist.job_id == job_id, Shortlist.candidate_id == candidate_id)
+    if current_user and current_user.role not in ("admin", "super_admin"):
+        query = query.filter((Shortlist.user_id == current_user.id) | (Shortlist.user_id.is_(None)))
+    record = query.first()
     if not record:
-        raise HTTPException(status_code=404, detail="Shortlist record not found")
-    shortlist_service.remove_from_shortlist(db, record.id)
+        raise HTTPException(status_code=404, detail="Shortlist record not found or access denied")
+    shortlist_service.remove_from_shortlist(
+        db,
+        record.id,
+        user_id=current_user.id if current_user else None,
+        is_admin=(current_user.role in ("admin", "super_admin") if current_user else False),
+    )
     return {"message": "Candidate removed from shortlist"}
 
 
 @router.delete("/{shortlist_id}")
-def remove_from_shortlist(shortlist_id: str, db: Session = Depends(get_db)):
-    success = shortlist_service.remove_from_shortlist(db, shortlist_id)
+def remove_from_shortlist(
+    shortlist_id: str,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+):
+    user_id = current_user.id if current_user else None
+    is_admin = current_user.role in ("admin", "super_admin") if current_user else False
+    success = shortlist_service.remove_from_shortlist(db, shortlist_id, user_id=user_id, is_admin=is_admin)
     if not success:
-        raise HTTPException(status_code=404, detail="Shortlist record not found")
+        raise HTTPException(status_code=404, detail="Shortlist record not found or access denied")
     return {"message": "Candidate removed from shortlist"}
 
 

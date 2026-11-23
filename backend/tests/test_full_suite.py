@@ -96,9 +96,8 @@ def test_candidates_and_rankings():
     assert res_c.json()["name"] == candidates[0]["name"]
 
     # 3. Get job rankings for seeded job
-    jobs = client.get("/api/jobs?limit=100").json()["items"]
-    seeded_job = next((j for j in jobs if j["title"] == "Senior Full-Stack Engineer"), jobs[0])
-    job_id = seeded_job["id"]
+    jobs = client.get("/api/jobs?search=Senior Full-Stack Engineer").json().get("items", [])
+    job_id = jobs[0]["id"] if jobs else "8aa94bff-4e94-4479-96e0-78928890a8a4"
     res_rank = client.get(f"/api/matching/rankings/{job_id}")
     assert res_rank.status_code == 200
     rankings = res_rank.json()
@@ -109,9 +108,8 @@ def test_candidates_and_rankings():
 
 
 def test_candidate_comparison():
-    jobs = client.get("/api/jobs?limit=100").json()["items"]
-    seeded_job = next((j for j in jobs if j["title"] == "Senior Full-Stack Engineer"), jobs[0])
-    job_id = seeded_job["id"]
+    jobs = client.get("/api/jobs?search=Senior Full-Stack Engineer").json().get("items", [])
+    job_id = jobs[0]["id"] if jobs else "8aa94bff-4e94-4479-96e0-78928890a8a4"
     candidates = client.get("/api/candidates?limit=3").json()["items"]
     cand_ids = [c["id"] for c in candidates[:3]]
 

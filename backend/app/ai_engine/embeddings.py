@@ -31,8 +31,15 @@ class EmbeddingService:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._embedding_cache = {}
-            cls._instance._initialize_model()
+            cls._instance._model = None
+            cls._instance._use_transformers = True
+            cls._instance._model_initialized = False
         return cls._instance
+
+    def _ensure_model_initialized(self):
+        if not getattr(self, "_model_initialized", False):
+            self._model_initialized = True
+            self._initialize_model()
 
     def _initialize_model(self):
         """Attempt to load SentenceTransformers model."""
@@ -58,6 +65,7 @@ class EmbeddingService:
 
     def _get_embedding(self, text: str) -> np.ndarray | None:
         """Retrieve embedding from cache or encode using SentenceTransformers."""
+        self._ensure_model_initialized()
         if not self._use_transformers or self._model is None:
             return None
         text_hash = hashlib.sha256(f"st_{text}".encode()).hexdigest()
@@ -158,6 +166,7 @@ class EmbeddingService:
             return 1.0
 
         # Method 1: Sentence Transformers with Cached Embeddings (Local/GPU)
+        self._ensure_model_initialized()
         if self._use_transformers and self._model is not None:
             emb_a = self._get_embedding(text_a)
             emb_b = self._get_embedding(text_b)

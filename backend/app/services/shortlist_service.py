@@ -43,11 +43,21 @@ class ShortlistService:
 
         return shortlist
 
-    def remove_from_shortlist(self, db: Session, shortlist_id: str) -> bool:
-        shortlist = db.query(Shortlist).filter(Shortlist.id == shortlist_id).first()
+    def remove_from_shortlist(
+        self, db: Session, shortlist_id: str, user_id: str | None = None, is_admin: bool = False
+    ) -> bool:
+        query = db.query(Shortlist).filter(Shortlist.id == shortlist_id)
+        if user_id and not is_admin:
+            query = query.filter((Shortlist.user_id == user_id) | (Shortlist.user_id.is_(None)))
+        shortlist = query.first()
+
         if not shortlist:
-            # Fallback: check if the identifier is candidate_id
-            shortlist = db.query(Shortlist).filter(Shortlist.candidate_id == shortlist_id).first()
+            # Fallback by candidate_id: strictly scope to current user to prevent cross-user IDOR deletion
+            fb_query = db.query(Shortlist).filter(Shortlist.candidate_id == shortlist_id)
+            if user_id and not is_admin:
+                fb_query = fb_query.filter((Shortlist.user_id == user_id) | (Shortlist.user_id.is_(None)))
+            shortlist = fb_query.first()
+
         if not shortlist:
             return False
 

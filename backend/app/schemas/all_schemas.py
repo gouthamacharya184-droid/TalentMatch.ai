@@ -18,7 +18,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     total: int
     skip: int
     limit: int
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Auth & Users ──────────────────────────────────────────
@@ -45,7 +45,7 @@ class UserResponse(UserBase):
     last_login: datetime | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class LoginRequest(BaseModel):
@@ -95,7 +95,7 @@ class JobRequirementResponse(JobRequirementBase):
     id: str
     job_id: str
     created_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class JobBase(BaseModel):
@@ -136,7 +136,7 @@ class JobResponse(JobBase):
     requirements: list[JobRequirementResponse] = []
     created_at: datetime
     updated_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Candidate & Skills ────────────────────────────────────
@@ -150,7 +150,7 @@ class CandidateSkillResponse(CandidateSkillBase):
     id: str
     candidate_id: str
     created_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class ResumeResponse(BaseModel):
@@ -168,7 +168,7 @@ class ResumeResponse(BaseModel):
     message: str | None = None
     error_message: str | None = None
     created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):
@@ -223,7 +223,7 @@ class CandidateResponse(CandidateBase):
     resume: ResumeResponse | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Matching Analysis ─────────────────────────────────────
@@ -246,7 +246,7 @@ class MatchingAnalysisResponse(BaseModel):
     candidate: CandidateResponse | None = None
     job: JobResponse | None = None
     created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class MatchRequest(BaseModel):
@@ -277,7 +277,7 @@ class ShortlistResponse(BaseModel):
     analysis: MatchingAnalysisResponse | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class RecruiterNoteCreate(BaseModel):
@@ -294,7 +294,7 @@ class RecruiterNoteResponse(BaseModel):
     content: str
     created_at: datetime
     updated_at: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Comparison ────────────────────────────────────────────
@@ -306,7 +306,7 @@ class CompareRequest(BaseModel):
 class CandidateComparisonItem(BaseModel):
     candidate: CandidateResponse
     analysis: MatchingAnalysisResponse
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class SkillOverlapItem(BaseModel):
@@ -318,7 +318,7 @@ class ComparisonResponse(BaseModel):
     job: JobResponse
     candidates: list[CandidateComparisonItem]
     skill_overlap: list[SkillOverlapItem]
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Notifications & Activity ──────────────────────────────
@@ -331,7 +331,7 @@ class NotificationResponse(BaseModel):
     data: dict[str, Any] | None = None
     is_read: bool
     created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class ActivityLogResponse(BaseModel):
@@ -342,7 +342,7 @@ class ActivityLogResponse(BaseModel):
     entity_id: str
     details: dict[str, Any] | None = None
     created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Dashboard & Analytics ─────────────────────────────────
@@ -358,7 +358,7 @@ class DashboardStatsResponse(BaseModel):
     score_distribution: dict[str, int] = {}
     skills_availability: dict[str, int] = {}
     recent_activity: list[ActivityLogResponse] = []
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Chatbot ───────────────────────────────────────────────
@@ -424,7 +424,7 @@ class CampaignResponse(CampaignBase):
     created_at: datetime
     updated_at: datetime | None = None
     jobs: list[JobResponse] = []
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Scoring Weights & What-If Simulation ─────────────────
@@ -512,7 +512,7 @@ class EvidenceReferenceResponse(BaseModel):
     confidence: float
     evidence_classification: str
     created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # ── Interview Intelligence Kits ──────────────────────────
@@ -539,7 +539,7 @@ class InterviewKitResponse(BaseModel):
     updated_at: datetime | None = None
     candidate_name: str | None = None
     job_title: str | None = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class InterviewKitGenerateRequest(BaseModel):
@@ -563,7 +563,7 @@ class AgentExecutionResponse(BaseModel):
     output_summary: str | None = None
     error_message: str | None = None
     created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class AgentActivityStats(BaseModel):

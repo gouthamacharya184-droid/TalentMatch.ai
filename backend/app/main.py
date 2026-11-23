@@ -235,6 +235,7 @@ def _get_health_data():
     candidate_count = 0
     resume_count = 0
     db_status = "connected"
+    is_prod = bool(os.environ.get("VERCEL")) or os.environ.get("ENVIRONMENT") == "production"
     try:
         from app.api.deps import ensure_db_initialized
 
@@ -247,9 +248,9 @@ def _get_health_data():
         finally:
             db.close()
     except Exception as e:
-        db_status = f"disconnected: {e!s}"
+        logger.error(f"Error checking database health: {e}")
+        db_status = "disconnected" if is_prod else f"disconnected: {e!s}"
 
-    is_prod = bool(os.environ.get("VERCEL")) or os.environ.get("ENVIRONMENT") == "production"
     dialect = getattr(engine.dialect, "name", "sqlite").lower()
 
     if is_prod and dialect == "sqlite":
